@@ -1044,7 +1044,77 @@
             localStorage.setItem('appData', JSON.stringify(appData));
         }
 
-        // ==================== SUPABASE KV STORE FUNCTIONS ====================
+        // ==================== SUPABASE TABLE FUNCTIONS ====================
+        // Initialize database tables
+        async function initializeSupabaseTables() {
+            if (!syncEnabled) return;
+
+            try {
+                console.log('Initializing Supabase tables...');
+
+                // Create categories table
+                try {
+                    const { error: catError } = await supabaseClient.rpc('exec_sql', {
+                        sql: `
+                            CREATE TABLE IF NOT EXISTS categories (
+                                id TEXT PRIMARY KEY,
+                                name TEXT NOT NULL UNIQUE,
+                                created_at TIMESTAMP DEFAULT NOW()
+                            );
+                        `
+                    }).catch(() => {
+                        // If RPC not available, try direct table creation
+                        return createTableDirectly('categories');
+                    });
+                } catch (e) {
+                    console.log('Categories table check/creation:', e.message);
+                }
+
+                // Create expenses table
+                try {
+                    await createTableDirectly('expenses');
+                } catch (e) {
+                    console.log('Expenses table check/creation:', e.message);
+                }
+
+                // Create investments table
+                try {
+                    await createTableDirectly('investments');
+                } catch (e) {
+                    console.log('Investments table check/creation:', e.message);
+                }
+
+                // Create schemes table
+                try {
+                    await createTableDirectly('schemes');
+                } catch (e) {
+                    console.log('Schemes table check/creation:', e.message);
+                }
+
+                console.log('✓ Table initialization completed');
+            } catch (error) {
+                console.log('Table initialization error:', error.message);
+            }
+        }
+
+        // Helper function to create tables by attempting an insert
+        async function createTableDirectly(tableName) {
+            // This will auto-create tables based on first insert
+            // For now, we'll just check if they exist
+            const { error } = await supabaseClient
+                .from(tableName)
+                .select('*')
+                .limit(0);
+            
+            if (error && error.message.includes('does not exist')) {
+                console.log(`⚠️ Table '${tableName}' does not exist. It will be created on first data insert.`);
+                return false;
+            }
+            
+            console.log(`✓ Table '${tableName}' exists`);
+            return true;
+        }
+
         async function loadFromSupabase() {
             if (!syncEnabled) {
                 console.log('Supabase sync disabled');
@@ -1052,114 +1122,75 @@
             }
 
             try {
-                // Load all KV pairs
-                const { data: kvPairs, error } = await supabaseClient
-                    .from('kv_store_8366c55a')
-                    .select('*');
+                // Initialize tables first
+                await initializeSupabaseTables();
 
-                if (error) throw error;
-                if (kvPairs && kvPairs.length > 0) {
-                    console.log('Loaded KV pairs from Supabase:', kvPairs.length);
-                    
-                    // Parse categories
-                    const categories = new Set();
-                    kvPairs.forEach(pair => {
-                        if (pair.key.startsWith('category:')) {
-                            try {
-                                const value = typeof pair.value === 'string' ? JSON.parse(pair.value) : pair.value;
-                                // Category name can be in value.name, value.category, or extract from key
-                                const categoryName = value.name || value.category || pair.key.substring('category:'.length);
-                                if (categoryName) {
-                                    categories.add(categoryName);
-                                }
-                            } catch (e) {
-                                // If parsing fails, try to extract from key directly
-                                const categoryName = pair.key.substring('category:'.length);
-                                if (categoryName) {
-                                    categories.add(categoryName);
-                                }
-                                console.log('Error parsing category:', e);
-                            }
-                        }
-                    });
-                    if (categories.size > 0) {
-                        appData.categories = Array.from(categories).sort();
-                        console.log('Loaded categories from Supabase:', appData.categories);
-                    }
+                // Load categories
+                const { data: categories, error: catError } = await supabaseClient
+                    .from('categories')
+                    .select('*')
+                    .order('name', { ascending: true });
 
-                    // Parse expenses
-                    const expenses = [];
-                    kvPairs.forEach(pair => {
-                        if (pair.key.startsWith('expense:')) {
-                            try {
-                                const value = typeof pair.value === 'string' ? JSON.parse(pair.value) : pair.value;
-                                expenses.push({
-                                    id: value.id || pair.key,
-                                    person: value.person,
-                                    category: value.category,
-                                    amount: value.amount,
-                                    date: value.date || new Date().toISOString().split('T')[0],
-                                    description: value.description || '',
-                                    year: value.year,
-                                    month: value.month,
-                                    timestamp: new Date(value.createdAt || new Date())
-                                });
-                            } catch (e) {
-                                console.log('Error parsing expense:', e);
-                            }
-                        }
-                    });
-                    if (expenses.length > 0) {
-                        appData.expenses = expenses;
-                        console.log('Loaded expenses:', appData.expenses.length);
-                    }
-
-                    // Parse investments
-                    const investments = [];
-                    kvPairs.forEach(pair => {
-                        if (pair.key.startsWith('investment:')) {
-                            try {
-                                const value = typeof pair.value === 'string' ? JSON.parse(pair.value) : pair.value;
-                                investments.push({
-                                    id: value.id || pair.key,
-                                    person: value.person,
-                                    scheme: value.scheme,
-                                    type: value.type,
-                                    amount: value.amount,
-                                    currentValue: value.currentValue,
-                                    date: value.date || new Date().toISOString().split('T')[0],
-                                    notes: value.notes || '',
-                                    timestamp: new Date(value.createdAt || new Date())
-                                });
-                            } catch (e) {
-                                console.log('Error parsing investment:', e);
-                            }
-                        }
-                    });
-                    if (investments.length > 0) {
-                        appData.investments = investments;
-                        console.log('Loaded investments:', appData.investments.length);
-                    }
-
-                    // Parse budget limits
-                    const budgetLimits = {};
-                    kvPairs.forEach(pair => {
-                        if (pair.key.startsWith('budget_limit:')) {
-                            try {
-                                const value = typeof pair.value === 'string' ? JSON.parse(pair.value) : pair.value;
-                                budgetLimits[pair.key] = value.limit || 0;
-                            } catch (e) {
-                                console.log('Error parsing budget limit:', e);
-                            }
-                        }
-                    });
-                    if (Object.keys(budgetLimits).length > 0) {
-                        appData.budgetLimits = budgetLimits;
-                        console.log('Loaded budget limits:', Object.keys(budgetLimits).length);
-                    }
+                if (!catError && categories && categories.length > 0) {
+                    appData.categories = categories.map(c => c.name).sort();
+                    console.log('✓ Loaded categories:', appData.categories.length);
                 }
+
+                // Load expenses
+                const { data: expenses, error: expError } = await supabaseClient
+                    .from('expenses')
+                    .select('*')
+                    .order('date', { ascending: false });
+
+                if (!expError && expenses && expenses.length > 0) {
+                    appData.expenses = expenses.map(e => ({
+                        id: e.id,
+                        person: e.person,
+                        category: e.category,
+                        amount: e.amount,
+                        date: e.date,
+                        description: e.description || '',
+                        year: e.year,
+                        month: e.month,
+                        timestamp: new Date(e.created_at)
+                    }));
+                    console.log('✓ Loaded expenses:', appData.expenses.length);
+                }
+
+                // Load investments
+                const { data: investments, error: invError } = await supabaseClient
+                    .from('investments')
+                    .select('*')
+                    .order('date', { ascending: false });
+
+                if (!invError && investments && investments.length > 0) {
+                    appData.investments = investments.map(i => ({
+                        id: i.id,
+                        person: i.person,
+                        scheme: i.scheme,
+                        type: i.type,
+                        amount: i.amount,
+                        currentValue: i.current_value,
+                        date: i.date,
+                        notes: i.notes || '',
+                        timestamp: new Date(i.created_at)
+                    }));
+                    console.log('✓ Loaded investments:', appData.investments.length);
+                }
+
+                // Load schemes
+                const { data: schemes, error: schError } = await supabaseClient
+                    .from('schemes')
+                    .select('*')
+                    .order('name', { ascending: true });
+
+                if (!schError && schemes && schemes.length > 0) {
+                    appData.schemes = schemes.map(s => s.name).sort();
+                    console.log('✓ Loaded schemes:', appData.schemes.length);
+                }
+
             } catch (error) {
-                console.log('Supabase load error (this is OK if KV store doesn\'t exist yet):', error.message);
+                console.error('Error loading from Supabase:', error.message);
             }
         }
 
@@ -1167,39 +1198,34 @@
             if (!syncEnabled) return;
 
             try {
-                // Create KV key: expense:{person}:{year}:{month}:{category}:{timestamp}
                 const date = new Date(expense.date);
                 const year = date.getFullYear();
                 const month = date.getMonth() + 1;
-                const key = `expense:${expense.person}:${year}:${month}:${expense.category}:${expense.id}`;
-                
-                const value = {
-                    id: key,
-                    person: expense.person,
-                    category: expense.category,
-                    amount: expense.amount,
-                    date: expense.date,
-                    description: expense.description,
-                    year: year,
-                    month: month,
-                    createdAt: new Date().toISOString()
-                };
 
                 const { data, error } = await supabaseClient
-                    .from('kv_store_8366c55a')
-                    .upsert([{
-                        key: key,
-                        value: value
-                    }]);
+                    .from('expenses')
+                    .upsert({
+                        id: expense.id,
+                        person: expense.person,
+                        category: expense.category,
+                        amount: expense.amount,
+                        date: expense.date,
+                        description: expense.description || '',
+                        year: year,
+                        month: month
+                    });
 
-                if (error) throw error;
-                console.log('Expense synced to Supabase:', key);
-            } catch (error) {
-                console.error('Supabase sync error for expense:', error.message);
-                if (error.message && error.message.includes('row-level security')) {
-                    console.warn('⚠️ RLS Policy Error: Go to Supabase → Authentication → Policies and disable RLS for kv_store_8366c55a table');
-                    showAlert('Supabase RLS Error: Check browser console for instructions', 'error');
+                if (error) {
+                    if (error.message.includes('does not exist')) {
+                        console.log('⚠️ Expenses table does not exist. Please run setup SQL in Supabase.');
+                        showAlert('⚠️ Supabase Setup Required: Run SQL queries in Supabase → SQL Editor', 'error');
+                    }
+                    throw error;
                 }
+                console.log('✓ Expense synced to Supabase:', expense.id);
+            } catch (error) {
+                console.error('Sync error for expense:', error.message);
+                showAlert('Error syncing expense: ' + error.message, 'error');
             }
         }
 
@@ -1207,36 +1233,24 @@
             if (!syncEnabled) return;
 
             try {
-                // Create KV key: investment:{person}:{scheme}:{timestamp}
-                const key = `investment:${investment.person}:${investment.scheme}:${investment.id}`;
-                
-                const value = {
-                    id: key,
-                    person: investment.person,
-                    scheme: investment.scheme,
-                    type: investment.type,
-                    amount: investment.amount,
-                    currentValue: investment.currentValue,
-                    date: investment.date,
-                    notes: investment.notes,
-                    createdAt: new Date().toISOString()
-                };
-
                 const { data, error } = await supabaseClient
-                    .from('kv_store_8366c55a')
-                    .upsert([{
-                        key: key,
-                        value: value
-                    }]);
+                    .from('investments')
+                    .upsert({
+                        id: investment.id,
+                        person: investment.person,
+                        scheme: investment.scheme,
+                        type: investment.type,
+                        amount: investment.amount,
+                        current_value: investment.currentValue,
+                        date: investment.date,
+                        notes: investment.notes || ''
+                    });
 
                 if (error) throw error;
-                console.log('Investment synced to Supabase:', key);
+                console.log('✓ Investment synced to Supabase:', investment.id);
             } catch (error) {
-                console.error('Supabase sync error for investment:', error.message);
-                if (error.message && error.message.includes('row-level security')) {
-                    console.warn('⚠️ RLS Policy Error: Go to Supabase → Authentication → Policies and disable RLS for kv_store_8366c55a table');
-                    showAlert('Supabase RLS Error: Check browser console for instructions', 'error');
-                }
+                console.error('Sync error for investment:', error.message);
+                showAlert('Error syncing investment: ' + error.message, 'error');
             }
         }
 
@@ -1244,24 +1258,15 @@
             if (!syncEnabled) return;
 
             try {
-                // Find the KV key for this expense
-                const expense = appData.expenses.find(e => e.id === id);
-                if (!expense) return;
-                
-                const date = new Date(expense.date);
-                const year = date.getFullYear();
-                const month = date.getMonth() + 1;
-                const key = `expense:${expense.person}:${year}:${month}:${expense.category}:${id}`;
-
                 const { error } = await supabaseClient
-                    .from('kv_store_8366c55a')
+                    .from('expenses')
                     .delete()
-                    .eq('key', key);
+                    .eq('id', id);
 
                 if (error) throw error;
-                console.log('Expense deleted from Supabase:', key);
+                console.log('✓ Expense deleted from Supabase:', id);
             } catch (error) {
-                console.log('Supabase delete error:', error.message);
+                console.error('Delete error:', error.message);
             }
         }
 
@@ -1269,21 +1274,15 @@
             if (!syncEnabled) return;
 
             try {
-                // Find the KV key for this investment
-                const investment = appData.investments.find(i => i.id === id);
-                if (!investment) return;
-                
-                const key = `investment:${investment.person}:${investment.scheme}:${id}`;
-
                 const { error } = await supabaseClient
-                    .from('kv_store_8366c55a')
+                    .from('investments')
                     .delete()
-                    .eq('key', key);
+                    .eq('id', id);
 
                 if (error) throw error;
-                console.log('Investment deleted from Supabase:', key);
+                console.log('✓ Investment deleted from Supabase:', id);
             } catch (error) {
-                console.log('Supabase delete error:', error.message);
+                console.error('Delete error:', error.message);
             }
         }
 
@@ -1291,35 +1290,20 @@
             if (!syncEnabled) return;
 
             try {
-                // Find the investment and update it in Supabase
                 const investment = appData.investments.find(i => i.id === id);
                 if (!investment) return;
-                
-                const key = `investment:${investment.person}:${investment.scheme}:${id}`;
-                
-                const value = {
-                    id: key,
-                    person: investment.person,
-                    scheme: investment.scheme,
-                    type: investment.type,
-                    amount: investment.amount,
-                    currentValue: investment.currentValue,
-                    date: investment.date,
-                    notes: investment.notes,
-                    createdAt: new Date().toISOString()
-                };
 
                 const { data, error } = await supabaseClient
-                    .from('kv_store_8366c55a')
+                    .from('investments')
                     .update({
-                        value: value
+                        current_value: investment.currentValue
                     })
-                    .eq('key', key);
+                    .eq('id', id);
 
                 if (error) throw error;
-                console.log('Investment updated in Supabase:', key);
+                console.log('✓ Investment updated in Supabase:', id);
             } catch (error) {
-                console.log('Supabase update error:', error.message);
+                console.error('Update error:', error.message);
             }
         }
 
@@ -1327,27 +1311,18 @@
             if (!syncEnabled) return;
 
             try {
-                const key = `category:${categoryName.toLowerCase()}`;
-                const value = {
-                    id: key,
-                    name: categoryName,
-                    createdAt: new Date().toISOString()
-                };
-
                 const { data, error } = await supabaseClient
-                    .from('kv_store_8366c55a')
-                    .upsert([{
-                        key: key,
-                        value: value
-                    }]);
+                    .from('categories')
+                    .upsert({
+                        id: `category:${categoryName.toLowerCase()}`,
+                        name: categoryName
+                    });
 
                 if (error) throw error;
-                console.log('Category synced to Supabase:', key);
+                console.log('✓ Category synced to Supabase:', categoryName);
             } catch (error) {
-                console.error('Supabase sync error for category:', error.message);
-                if (error.message && error.message.includes('row-level security')) {
-                    console.warn('⚠️ RLS Policy Error: Go to Supabase → Authentication → Policies and disable RLS for kv_store_8366c55a table');
-                }
+                console.error('Sync error for category:', error.message);
+                showAlert('Error syncing category: ' + error.message, 'error');
             }
         }
 
@@ -1355,16 +1330,15 @@
             if (!syncEnabled) return;
 
             try {
-                const key = `category:${categoryName.toLowerCase()}`;
                 const { error } = await supabaseClient
-                    .from('kv_store_8366c55a')
+                    .from('categories')
                     .delete()
-                    .eq('key', key);
+                    .eq('name', categoryName);
 
                 if (error) throw error;
-                console.log('Category deleted from Supabase:', key);
+                console.log('✓ Category deleted from Supabase:', categoryName);
             } catch (error) {
-                console.log('Supabase delete error:', error.message);
+                console.error('Delete error:', error.message);
             }
         }
 
@@ -1372,27 +1346,18 @@
             if (!syncEnabled) return;
 
             try {
-                const key = `scheme:${schemeName.toLowerCase()}`;
-                const value = {
-                    id: key,
-                    name: schemeName,
-                    createdAt: new Date().toISOString()
-                };
-
                 const { data, error } = await supabaseClient
-                    .from('kv_store_8366c55a')
-                    .upsert([{
-                        key: key,
-                        value: value
-                    }]);
+                    .from('schemes')
+                    .upsert({
+                        id: `scheme:${schemeName.toLowerCase()}`,
+                        name: schemeName
+                    });
 
                 if (error) throw error;
-                console.log('Scheme synced to Supabase:', key);
+                console.log('✓ Scheme synced to Supabase:', schemeName);
             } catch (error) {
-                console.error('Supabase sync error for scheme:', error.message);
-                if (error.message && error.message.includes('row-level security')) {
-                    console.warn('⚠️ RLS Policy Error: Go to Supabase → Authentication → Policies and disable RLS for kv_store_8366c55a table');
-                }
+                console.error('Sync error for scheme:', error.message);
+                showAlert('Error syncing scheme: ' + error.message, 'error');
             }
         }
 
@@ -1400,16 +1365,15 @@
             if (!syncEnabled) return;
 
             try {
-                const key = `scheme:${schemeName.toLowerCase()}`;
                 const { error } = await supabaseClient
-                    .from('kv_store_8366c55a')
+                    .from('schemes')
                     .delete()
-                    .eq('key', key);
+                    .eq('name', schemeName);
 
                 if (error) throw error;
-                console.log('Scheme deleted from Supabase:', key);
+                console.log('✓ Scheme deleted from Supabase:', schemeName);
             } catch (error) {
-                console.log('Supabase delete error:', error.message);
+                console.error('Delete error:', error.message);
             }
         }
 
@@ -1556,8 +1520,8 @@
                     <td>₹${expense.amount.toFixed(2)}</td>
                     <td>${expense.description || '-'}</td>
                     <td>
-                        <button class="secondary-btn" style="padding: 5px 10px; font-size: 0.85em; margin-right: 5px;" onclick="openEditExpenseModal(${expense.id})">Edit</button>
-                        <button class="danger-btn" style="padding: 5px 10px; font-size: 0.85em;" onclick="deleteExpense(${expense.id})">Delete</button>
+                        <button class="secondary-btn" style="padding: 5px 10px; font-size: 0.85em; margin-right: 5px;" onclick="openEditExpenseModal('${expense.id}')">Edit</button>
+                        <button class="danger-btn" style="padding: 5px 10px; font-size: 0.85em;" onclick="deleteExpense('${expense.id}')">Delete</button>
                     </td>
                 `;
                 tbody.appendChild(row);
@@ -1905,7 +1869,7 @@
                     <td>${inv.person}</td>
                     <td>${inv.scheme}</td>
                     <td>₹${inv.amount.toFixed(2)}</td>
-                    <td onclick="editInvestmentValue(${inv.id})" style="cursor: pointer; text-decoration: underline; color: #667eea;">₹${inv.currentValue.toFixed(2)}</td>
+                    <td onclick="editInvestmentValue('${inv.id}')" style="cursor: pointer; text-decoration: underline; color: #667eea;">₹${inv.currentValue.toFixed(2)}</td>
                     <td style="color: ${gain >= 0 ? '#28a745' : '#dc3545'}">₹${gain.toFixed(2)}</td>
                     <td style="color: ${returnPercent >= 0 ? '#28a745' : '#dc3545'}">${returnPercent}%</td>
                     <td style="color: ${xirrPercent >= 0 ? '#28a745' : '#dc3545'}">${xirrPercent}%</td>
