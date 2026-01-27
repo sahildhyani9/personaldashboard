@@ -480,6 +480,7 @@
         <div class="tabs-container">
             <button class="tab-btn active" onclick="switchTab('expenses')">Expenses</button>
             <button class="tab-btn" onclick="switchTab('investments')">Investments</button>
+            <button class="tab-btn" onclick="switchTab('settlements')">Settlements</button>
         </div>
 
         <!-- EXPENSES TAB -->
@@ -510,6 +511,14 @@
                     <div class="filter-group">
                         <label>Date</label>
                         <input type="date" id="expenseDate">
+                    </div>
+                    <div class="filter-group">
+                        <label>Payee (Who should pay?)</label>
+                        <select id="expensePayee">
+                            <option value="">Select Payee</option>
+                            <option value="S.D">S.D</option>
+                            <option value="P.G">P.G</option>
+                        </select>
                     </div>
                 </div>
                 <div class="form-row">
@@ -592,6 +601,7 @@
                             <th>Date</th>
                             <th>Person</th>
                             <th>Category</th>
+                            <th>Payee</th>
                             <th>Amount</th>
                             <th>Description</th>
                             <th>Actions</th>
@@ -704,6 +714,65 @@
                 </table>
             </div>
         </div>
+
+        <!-- SETTLEMENTS TAB -->
+        <div id="settlements" class="tab-content">
+            <div class="section-title">Settlements & Balance</div>
+
+            <!-- Year Filter -->
+            <div class="filters-row">
+                <div class="filter-group">
+                    <label>Year</label>
+                    <select id="settlementYearFilter" onchange="renderSettlements()">
+                        <option value="">All Years</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Month</label>
+                    <select id="settlementMonthFilter" onchange="renderSettlements()">
+                        <option value="">All Months</option>
+                        <option value="1">January</option>
+                        <option value="2">February</option>
+                        <option value="3">March</option>
+                        <option value="4">April</option>
+                        <option value="5">May</option>
+                        <option value="6">June</option>
+                        <option value="7">July</option>
+                        <option value="8">August</option>
+                        <option value="9">September</option>
+                        <option value="10">October</option>
+                        <option value="11">November</option>
+                        <option value="12">December</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Settlement Summary -->
+            <div class="stats-grid" id="settlementSummaryGrid"></div>
+
+            <!-- Settlement Details Table -->
+            <div class="table-responsive">
+                <h3 style="margin-bottom: 15px;">Monthly Settlements</h3>
+                <table id="settlementsTable">
+                    <thead>
+                        <tr>
+                            <th>Period</th>
+                            <th>From</th>
+                            <th>To</th>
+                            <th>Amount</th>
+                            <th>Status</th>
+                            <th>Paid On</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="settlementsTableBody">
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Settlement History -->
+            <div id="settlementHistoryContainer" style="margin-top: 30px;"></div>
+        </div>
     </div>
 
     <!-- Edit Expense Modal -->
@@ -729,6 +798,16 @@
                         <label>Date</label>
                         <input type="date" id="editExpenseDate" required>
                     </div>
+                    <div class="filter-group">
+                        <label>Payee (Who should pay?)</label>
+                        <select id="editExpensePayee" required>
+                            <option value="">Select Payee</option>
+                            <option value="S.D">S.D</option>
+                            <option value="P.G">P.G</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
                     <div class="filter-group">
                         <label>Description</label>
                         <input type="text" id="editExpenseDescription" placeholder="Add notes...">
@@ -894,6 +973,38 @@
         </div>
     </div>
 
+    <!-- Mark Settlement Paid Modal -->
+    <div id="markSettlementModal" class="modal">
+        <div class="modal-content">
+            <h2 class="modal-header">
+                <button class="close-modal" onclick="closeMarkSettlementModal()">&times;</button>
+                Record Settlement Payment
+            </h2>
+            <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                <p style="font-size: 1.1em; color: #333; margin-bottom: 10px;">
+                    <strong id="settlementAmountDisplay">₹0.00</strong>
+                </p>
+                <p id="settlementDescDisplay" style="color: #666; font-size: 0.95em;"></p>
+            </div>
+            <div class="form-row">
+                <div class="filter-group">
+                    <label>Payment Date</label>
+                    <input type="date" id="settlementPaidDate" required>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="filter-group">
+                    <label>Notes (Optional)</label>
+                    <textarea id="settlementPaymentNotes" placeholder="e.g., Paid via UPI, Bank transfer, etc." style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;"></textarea>
+                </div>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px;">
+                <button class="secondary-btn" onclick="closeMarkSettlementModal()">Cancel</button>
+                <button class="success-btn" onclick="confirmMarkSettlementPaid()">Confirm Payment</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Sync Modal -->
     <div id="syncModal" class="modal">
         <div class="modal-content">
@@ -981,6 +1092,7 @@
         let appData = {
             expenses: [],
             investments: [],
+            settlements: [],
             categories: ['Rent', 'Travel', 'Grocery', 'Entertainment', 'Utilities', 'Healthcare', 'Education', 'Other'],
             schemes: ['HDFC Index Fund', 'ICICI Balanced Fund', 'Axis Equity Fund', 'SBI Liquid Fund'],
             charts: [],
@@ -1008,6 +1120,7 @@
                     updateExpenseStats();
                     updateInvestmentStats();
                     populateYearFilters();
+                    renderSettlements();
                     saveToLocalStorage();
                 }).catch(err => {
                     console.error('Error loading from Supabase:', err);
@@ -1146,6 +1259,7 @@
                     appData.expenses = expenses.map(e => ({
                         id: e.id,
                         person: e.person,
+                        payee: e.payee || '',
                         category: e.category,
                         amount: e.amount,
                         date: e.date,
@@ -1189,6 +1303,29 @@
                     console.log('✓ Loaded schemes:', appData.schemes.length);
                 }
 
+                // Load settlements
+                const { data: settlements, error: settError } = await supabaseClient
+                    .from('settlements')
+                    .select('*')
+                    .order('year', { ascending: false });
+
+                if (!settError && settlements && settlements.length > 0) {
+                    appData.settlements = settlements.map(s => ({
+                        id: s.id,
+                        year: s.year,
+                        month: s.month,
+                        isPaid: s.is_paid,
+                        paidOn: s.paid_on
+                    }));
+                    console.log('✓ Loaded settlements:', appData.settlements.length);
+                } else if (settError) {
+                    console.warn('⚠️ Settlements table not found or error loading:', settError.message);
+                    appData.settlements = [];  // Initialize as empty array
+                } else {
+                    console.log('✓ No settlements found yet');
+                    appData.settlements = [];  // Initialize as empty array
+                }
+
             } catch (error) {
                 console.error('Error loading from Supabase:', error.message);
             }
@@ -1207,6 +1344,7 @@
                     .upsert({
                         id: expense.id,
                         person: expense.person,
+                        payee: expense.payee || '',
                         category: expense.category,
                         amount: expense.amount,
                         date: expense.date,
@@ -1443,12 +1581,13 @@
         // ==================== EXPENSE FUNCTIONS ====================
         function addExpense() {
             const person = document.getElementById('expensePerson').value;
+            const payee = document.getElementById('expensePayee').value;
             const category = document.getElementById('expenseCategory').value;
             const amount = parseFloat(document.getElementById('expenseAmount').value);
             const date = document.getElementById('expenseDate').value;
             const description = document.getElementById('expenseDescription').value;
 
-            if (!category || !amount || !date) {
+            if (!category || !amount || !date || !payee) {
                 alert('Please fill all required fields');
                 return;
             }
@@ -1456,6 +1595,7 @@
             const expense = {
                 id: Date.now(),
                 person,
+                payee,
                 category,
                 amount,
                 date,
@@ -1471,10 +1611,12 @@
             document.getElementById('expenseAmount').value = '';
             document.getElementById('expenseDescription').value = '';
             document.getElementById('expenseDate').value = new Date().toISOString().split('T')[0];
+            document.getElementById('expensePayee').value = '';
 
             renderExpensesTable();
             updateExpenseStats();
             populateYearFilters();
+            renderSettlements();
             showAlert('Expense added successfully!', 'success');
         }
 
@@ -1485,6 +1627,7 @@
                 deleteExpenseFromSupabase(id);
                 renderExpensesTable();
                 updateExpenseStats();
+                renderSettlements();
             }
         }
 
@@ -1517,6 +1660,7 @@
                     <td>${new Date(expense.date).toLocaleDateString()}</td>
                     <td>${expense.person}</td>
                     <td>${expense.category}</td>
+                    <td>${expense.payee || '-'}</td>
                     <td>₹${expense.amount.toFixed(2)}</td>
                     <td>${expense.description || '-'}</td>
                     <td>
@@ -1943,6 +2087,444 @@
             `;
         }
 
+        // ==================== SETTLEMENT FUNCTIONS ====================
+        function calculateSettlementsForPeriod(year, month) {
+            // Calculate who owes whom for a specific month
+            // Tracks expenses where person !== payee (i.e., one person paid for the other)
+            const monthExpenses = appData.expenses.filter(e => {
+                const eDate = new Date(e.date);
+                return eDate.getFullYear() === year && (eDate.getMonth() + 1) === month && e.person !== e.payee;
+            });
+
+            const settlement = {
+                year,
+                month,
+                SDOwesP: 0, // S.D owes P.G
+                POwesSD: 0, // P.G owes S.D
+                details: []  // Track individual expenses for transparency
+            };
+
+            monthExpenses.forEach(exp => {
+                // If S.D is the payer and P.G is the payee, S.D owes P.G
+                if (exp.person === 'S.D' && exp.payee === 'P.G') {
+                    settlement.SDOwesP += exp.amount;
+                    settlement.details.push({
+                        from: 'S.D',
+                        to: 'P.G',
+                        amount: exp.amount,
+                        category: exp.category,
+                        date: exp.date,
+                        description: exp.description || ''
+                    });
+                }
+                // If P.G is the payer and S.D is the payee, P.G owes S.D
+                else if (exp.person === 'P.G' && exp.payee === 'S.D') {
+                    settlement.POwesSD += exp.amount;
+                    settlement.details.push({
+                        from: 'P.G',
+                        to: 'S.D',
+                        amount: exp.amount,
+                        category: exp.category,
+                        date: exp.date,
+                        description: exp.description || ''
+                    });
+                }
+            });
+
+            // Calculate net settlement with netting mechanism
+            settlement.netAmount = Math.abs(settlement.SDOwesP - settlement.POwesSD);
+            if (settlement.SDOwesP > settlement.POwesSD) {
+                settlement.netOwedBy = 'S.D';
+                settlement.netOwedTo = 'P.G';
+                settlement.netDescription = `S.D owes P.G ₹${settlement.netAmount.toFixed(2)}`;
+            } else if (settlement.POwesSD > settlement.SDOwesP) {
+                settlement.netOwedBy = 'P.G';
+                settlement.netOwedTo = 'S.D';
+                settlement.netDescription = `P.G owes S.D ₹${settlement.netAmount.toFixed(2)}`;
+            } else {
+                settlement.netOwedBy = 'SETTLED';
+                settlement.netOwedTo = 'SETTLED';
+                settlement.netDescription = 'Settlement balanced - no payment needed';
+            }
+            
+            settlement.isPaid = false;
+            settlement.paidOn = null;
+
+            // Check if there's an existing settlement record and merge paid status
+            // Ensure appData.settlements is an array before using find()
+            if (Array.isArray(appData.settlements) && appData.settlements.length > 0) {
+                const existing = appData.settlements.find(s => s.year === year && s.month === month);
+                if (existing) {
+                    settlement.isPaid = existing.isPaid;
+                    settlement.paidOn = existing.paidOn;
+                    settlement.id = existing.id;
+                } else {
+                    settlement.id = `settlement:${year}:${month}`;
+                }
+            } else {
+                settlement.id = `settlement:${year}:${month}`;
+            }
+
+            return settlement;
+        }
+
+        function calculateAllSettlements() {
+            // Calculate settlements for all months with expenses
+            const months = new Map();
+            
+            appData.expenses.forEach(exp => {
+                const eDate = new Date(exp.date);
+                const year = eDate.getFullYear();
+                const month = eDate.getMonth() + 1;
+                const key = `${year}-${month}`;
+                
+                if (!months.has(key)) {
+                    months.set(key, { year, month });
+                }
+            });
+
+            const settlements = [];
+            months.forEach(({ year, month }) => {
+                const settlement = calculateSettlementsForPeriod(year, month);
+                settlements.push(settlement);
+            });
+
+            return settlements.sort((a, b) => {
+                if (a.year !== b.year) return b.year - a.year;
+                return b.month - a.month;
+            });
+        }
+
+        function renderSettlements() {
+            const year = parseInt(document.getElementById('settlementYearFilter')?.value) || new Date().getFullYear();
+            const month = parseInt(document.getElementById('settlementMonthFilter')?.value) || 0;
+
+            // Calculate all settlements
+            const allSettlements = calculateAllSettlements();
+            
+            // Filter by selected year/month
+            let filtered = allSettlements;
+            if (month > 0) {
+                filtered = filtered.filter(s => s.year === year && s.month === month);
+            } else if (year > 0) {
+                filtered = filtered.filter(s => s.year === year);
+            }
+
+            // Update summary cards
+            renderSettlementSummary(filtered);
+            
+            // Update settlements table
+            renderSettlementsTable(filtered);
+            
+            // Update history
+            renderSettlementHistory(allSettlements);
+            
+            // Populate year filter
+            populateSettlementFilters(allSettlements);
+        }
+
+        function renderSettlementSummary(settlements) {
+            const grid = document.getElementById('settlementSummaryGrid');
+            if (!grid) return;
+
+            if (settlements.length === 0) {
+                grid.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: #999; padding: 20px;">No settlements for selected period</p>';
+                return;
+            }
+
+            const latestSettlement = settlements[0];
+            const totalOwed = settlements.reduce((sum, s) => sum + (s.netAmount || 0), 0);
+            const paidCount = settlements.filter(s => s.isPaid).length;
+            const unpaidCount = settlements.length - paidCount;
+            const settledCount = settlements.filter(s => s.netAmount === 0).length;
+
+            let statusBadge = latestSettlement.netAmount === 0 
+                ? '<span style="background: #28a745; color: white; padding: 5px 10px; border-radius: 4px; font-size: 0.85em;">✓ Balanced</span>'
+                : `<span style="background: #ff6b6b; color: white; padding: 5px 10px; border-radius: 4px; font-size: 0.85em;">Outstanding</span>`;
+
+            let netInfo = latestSettlement.netAmount === 0
+                ? '<p style="font-size: 0.9em; color: #28a745; margin-top: 5px; font-weight: bold;">No payment needed</p>'
+                : `<p style="font-size: 0.9em; color: #666; margin-top: 5px;">${latestSettlement.netOwedBy} owes ${latestSettlement.netOwedTo}</p>`;
+
+            grid.innerHTML = `
+                <div class="stat-card">
+                    <h3>Current Net Settlement</h3>
+                    <div class="stat-value" style="color: ${latestSettlement.netAmount === 0 ? '#28a745' : '#667eea'};">₹${latestSettlement.netAmount.toFixed(2)}</div>
+                    ${netInfo}
+                    <div style="margin-top: 10px;">${statusBadge}</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Period Overview</h3>
+                    <div style="font-size: 0.95em; color: #333; line-height: 1.8;">
+                        <div>📊 Periods Reviewed: <strong>${settlements.length}</strong></div>
+                        <div>✓ Settled: <strong>${settledCount}</strong></div>
+                        <div>✅ Paid: <strong>${paidCount}</strong></div>
+                        <div>⏳ Pending: <strong>${unpaidCount}</strong></div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <h3>Total Outstanding</h3>
+                    <div class="stat-value" style="color: #ff6b6b;">₹${totalOwed.toFixed(2)}</div>
+                    <p style="font-size: 0.9em; color: #666; margin-top: 5px;">Across all periods</p>
+                </div>
+            `;
+        }
+
+        function renderSettlementsTable(settlements) {
+            const tbody = document.getElementById('settlementsTableBody');
+            if (!tbody) return;
+
+            tbody.innerHTML = '';
+            if (settlements.length === 0) {
+                const row = tbody.insertRow();
+                row.innerHTML = '<td colspan="7" style="text-align: center; color: #999; padding: 20px;">No settlements found</td>';
+                return;
+            }
+
+            settlements.forEach(settlement => {
+                const monthName = new Date(settlement.year, settlement.month - 1).toLocaleString('default', { month: 'long' });
+                const periodStr = `${monthName} ${settlement.year}`;
+                
+                let statusColor, statusText, statusIcon;
+                if (settlement.netAmount === 0) {
+                    statusColor = '#28a745';
+                    statusText = '✓ Balanced';
+                    statusIcon = '✓';
+                } else if (settlement.isPaid) {
+                    statusColor = '#28a745';
+                    statusText = '✓ Paid';
+                    statusIcon = '✓';
+                } else {
+                    statusColor = '#ffc107';
+                    statusText = '⏳ Pending';
+                    statusIcon = '⏳';
+                }
+                
+                const row = tbody.insertRow();
+                row.style.borderBottom = '1px solid #eee';
+                row.innerHTML = `
+                    <td style="font-weight: 600;">${periodStr}</td>
+                    <td><strong>${settlement.netOwedBy}</strong></td>
+                    <td><strong>${settlement.netOwedTo}</strong></td>
+                    <td style="font-weight: 600; color: #667eea;">₹${settlement.netAmount.toFixed(2)}</td>
+                    <td style="color: ${statusColor}; font-weight: bold;">${statusIcon}</td>
+                    <td>${settlement.paidOn ? new Date(settlement.paidOn).toLocaleDateString() : '-'}</td>
+                    <td>
+                        ${settlement.netAmount > 0 && !settlement.isPaid 
+                            ? `<button class="success-btn" style="padding: 5px 10px; font-size: 0.85em; cursor: pointer;" onclick="openMarkSettlementModal('${settlement.id}', ${settlement.year}, ${settlement.month}, '${settlement.netOwedBy}', '${settlement.netOwedTo}', ${settlement.netAmount})">Mark Paid</button>` 
+                            : '<span style="color: #999; font-size: 0.9em;">-</span>'}
+                    </td>
+                `;
+            });
+        }
+
+        function renderSettlementHistory(allSettlements) {
+            const container = document.getElementById('settlementHistoryContainer');
+            if (!container) return;
+
+            // Group by year
+            const byYear = {};
+            allSettlements.forEach(s => {
+                if (!byYear[s.year]) byYear[s.year] = [];
+                byYear[s.year].push(s);
+            });
+
+            let html = '<h3 style="margin-bottom: 20px; color: #333;">Settlement History</h3>';
+            
+            Object.keys(byYear).sort((a, b) => b - a).forEach(year => {
+                const yearSettlements = byYear[year];
+                const yearTotal = yearSettlements.reduce((sum, s) => sum + s.netAmount, 0);
+                
+                html += `
+                    <div style="background: #f9f9f9; border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin-bottom: 15px;">
+                        <div style="font-weight: bold; color: #333; margin-bottom: 10px; font-size: 1.1em;">Year ${year}</div>
+                        <div style="display: grid; gap: 8px;">
+                `;
+                
+                yearSettlements.forEach(settlement => {
+                    const monthName = new Date(settlement.year, settlement.month - 1).toLocaleString('default', { month: 'short' });
+                    const statusColor = settlement.isPaid ? '#28a745' : '#dc3545';
+                    const statusIcon = settlement.isPaid ? '✓' : '✗';
+                    
+                    html += `
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; background: white; border-radius: 4px;">
+                            <div>
+                                <strong>${monthName}</strong> - ${settlement.netOwedBy} owes ₹${settlement.netAmount.toFixed(2)}
+                            </div>
+                            <span style="color: ${statusColor}; font-weight: bold; font-size: 1.2em;">${statusIcon}</span>
+                        </div>
+                    `;
+                });
+                
+                html += `
+                        </div>
+                        <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; font-weight: bold; color: #667eea;">
+                            Year Total: ₹${yearTotal.toFixed(2)}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            if (Object.keys(byYear).length === 0) {
+                html += '<p style="color: #999; text-align: center; padding: 20px;">No settlement history yet</p>';
+            }
+            
+            container.innerHTML = html;
+        }
+
+        function populateSettlementFilters(allSettlements) {
+            const yearSelect = document.getElementById('settlementYearFilter');
+            if (!yearSelect) return;
+
+            const years = new Set([new Date().getFullYear()]);
+            allSettlements.forEach(s => years.add(s.year));
+            
+            const currentValue = yearSelect.value;
+            yearSelect.innerHTML = '<option value="">All Years</option>';
+            
+            Array.from(years).sort((a, b) => b - a).forEach(year => {
+                const option = document.createElement('option');
+                option.value = year;
+                option.textContent = year;
+                yearSelect.appendChild(option);
+            });
+            
+            yearSelect.value = currentValue || '';
+        }
+
+        async function markSettlementPaid(id, year, month) {
+            const settlement = appData.settlements.find(s => s.id === id);
+            
+            if (!settlement) {
+                // Create new settlement record
+                appData.settlements.push({
+                    id,
+                    year,
+                    month,
+                    isPaid: true,
+                    paidOn: new Date().toISOString()
+                });
+            } else {
+                settlement.isPaid = true;
+                settlement.paidOn = new Date().toISOString();
+            }
+            
+            saveToLocalStorage();
+            await syncSettlementToSupabase({ id, year, month, isPaid: true, paidOn: new Date().toISOString() });
+            renderSettlements();
+            showAlert('✓ Settlement marked as paid!', 'success');
+        }
+
+        function openMarkSettlementModal(id, year, month, owedBy, owedTo, amount) {
+            // Store settlement details for confirmation
+            document.getElementById('markSettlementModal').dataset.settlementId = id;
+            document.getElementById('markSettlementModal').dataset.year = year;
+            document.getElementById('markSettlementModal').dataset.month = month;
+            
+            // Set default date to today
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('settlementPaidDate').value = today;
+            
+            // Display settlement info
+            document.getElementById('settlementAmountDisplay').textContent = `₹${amount.toFixed(2)}`;
+            document.getElementById('settlementDescDisplay').textContent = `${owedBy} owes ${owedTo} for ${new Date(year, month - 1).toLocaleString('default', { month: 'long' })} ${year}`;
+            document.getElementById('settlementPaymentNotes').value = '';
+            
+            document.getElementById('markSettlementModal').classList.add('active');
+        }
+
+        function closeMarkSettlementModal() {
+            document.getElementById('markSettlementModal').classList.remove('active');
+        }
+
+        async function confirmMarkSettlementPaid() {
+            const id = document.getElementById('markSettlementModal').dataset.settlementId;
+            const year = parseInt(document.getElementById('markSettlementModal').dataset.year);
+            const month = parseInt(document.getElementById('markSettlementModal').dataset.month);
+            const paidDate = document.getElementById('settlementPaidDate').value;
+            const notes = document.getElementById('settlementPaymentNotes').value;
+
+            if (!paidDate) {
+                showAlert('Please select a payment date', 'error');
+                return;
+            }
+
+            try {
+                const settlement = appData.settlements.find(s => s.id === id);
+                
+                if (!settlement) {
+                    appData.settlements.push({
+                        id,
+                        year,
+                        month,
+                        isPaid: true,
+                        paidOn: new Date(paidDate).toISOString(),
+                        notes: notes || ''
+                    });
+                } else {
+                    settlement.isPaid = true;
+                    settlement.paidOn = new Date(paidDate).toISOString();
+                    settlement.notes = notes || '';
+                }
+                
+                saveToLocalStorage();
+                await syncSettlementToSupabase({ 
+                    id, 
+                    year, 
+                    month, 
+                    isPaid: true, 
+                    paidOn: new Date(paidDate).toISOString(),
+                    notes: notes || ''
+                });
+                
+                closeMarkSettlementModal();
+                renderSettlements();
+                showAlert('✓ Settlement marked as paid on ' + new Date(paidDate).toLocaleDateString(), 'success');
+            } catch (error) {
+                console.error('Error marking settlement paid:', error);
+                showAlert('Error: ' + error.message, 'error');
+            }
+        }
+
+        async function syncSettlementToSupabase(settlement) {
+            if (!syncEnabled) return;
+
+            try {
+                // Get full settlement details for the Supabase record
+                const allSettlements = calculateAllSettlements();
+                const fullSettlement = allSettlements.find(s => s.year === settlement.year && s.month === settlement.month);
+                
+                if (!fullSettlement) {
+                    console.log('⚠️ Settlement not found for syncing');
+                    return;
+                }
+
+                const { error } = await supabaseClient
+                    .from('settlements')
+                    .upsert({
+                        id: settlement.id || fullSettlement.id,
+                        year: settlement.year,
+                        month: settlement.month,
+                        person_from: fullSettlement.netOwedBy,
+                        person_to: fullSettlement.netOwedTo,
+                        sd_owes_pg: fullSettlement.SDOwesP,
+                        pg_owes_sd: fullSettlement.POwesSD,
+                        net_amount: fullSettlement.netAmount,
+                        net_owed_by: fullSettlement.netOwedBy,
+                        is_paid: settlement.isPaid || false,
+                        paid_on: settlement.paidOn || null
+                    }, { onConflict: 'id' });
+
+                if (error) throw error;
+                console.log('✓ Settlement synced to Supabase:', settlement.id || fullSettlement.id);
+            } catch (error) {
+                console.error('Settlement sync error:', error.message);
+                if (error.message.includes('does not exist')) {
+                    showAlert('⚠️ Settlements table not found. Please run SQL setup in Supabase.', 'error');
+                }
+            }
+        }
+
         // ==================== SCHEME FUNCTIONS ====================
         function openSchemeModal() {
             document.getElementById('schemeModal').classList.add('active');
@@ -2293,6 +2875,7 @@
             // Populate form
             document.getElementById('editExpenseAmount').value = expense.amount;
             document.getElementById('editExpenseDate').value = expense.date;
+            document.getElementById('editExpensePayee').value = expense.payee || '';
             document.getElementById('editExpenseDescription').value = expense.description || '';
 
             // Store current ID for save
@@ -2320,9 +2903,10 @@
             const newCategory = document.getElementById('editExpenseCategory').value.trim();
             const newAmount = parseFloat(document.getElementById('editExpenseAmount').value);
             const newDate = document.getElementById('editExpenseDate').value;
+            const newPayee = document.getElementById('editExpensePayee').value.trim();
             const newDescription = document.getElementById('editExpenseDescription').value.trim();
 
-            if (!newCategory || isNaN(newAmount) || newAmount <= 0 || !newDate) {
+            if (!newCategory || isNaN(newAmount) || newAmount <= 0 || !newDate || !newPayee) {
                 showAlert('Please fill all required fields with valid values', 'error');
                 return;
             }
@@ -2331,14 +2915,17 @@
             expense.category = newCategory;
             expense.amount = newAmount;
             expense.date = newDate;
+            expense.payee = newPayee;
             expense.description = newDescription;
 
             // Save to local storage and sync to Supabase
             saveToLocalStorage();
             await syncExpenseToSupabase(expense);
 
-            // Refresh table
+            // Refresh UI
             applyExpenseFilters();
+            updateExpenseStats();
+            renderSettlements();
             closeEditExpenseModal();
             showAlert('✓ Expense updated successfully!', 'success');
         }
