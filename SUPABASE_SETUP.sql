@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS settlements (
     net_owed_by TEXT NOT NULL,
     is_paid BOOLEAN DEFAULT FALSE,
     paid_on TIMESTAMP,
+    notes TEXT DEFAULT '',
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW(),
     UNIQUE(year, month)
