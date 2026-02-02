@@ -2057,17 +2057,21 @@
 
             const sortedYears = Array.from(years).sort((a, b) => b - a);
 
-            [document.getElementById('expenseYearFilter'), document.getElementById('investmentYearFilter')].forEach(select => {
-                const current = select.value;
-                select.innerHTML = '<option value="">All Years</option>';
-                sortedYears.forEach(year => {
-                    const option = document.createElement('option');
-                    option.value = year;
-                    option.textContent = year;
-                    select.appendChild(option);
+            const yearSelectIds = ['expenseYearFilter', 'investmentYearFilter', 'incomeYearFilter'];
+            yearSelectIds
+                .map(id => document.getElementById(id))
+                .filter(Boolean)
+                .forEach(select => {
+                    const current = select.value || '';
+                    select.innerHTML = '<option value="">All Years</option>';
+                    sortedYears.forEach(year => {
+                        const option = document.createElement('option');
+                        option.value = year;
+                        option.textContent = year;
+                        select.appendChild(option);
+                    });
+                    select.value = current;
                 });
-                select.value = current;
-            });
         }
 
         // ==================== EXPENSE FUNCTIONS ====================
