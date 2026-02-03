@@ -1674,6 +1674,20 @@
                     console.log('Schemes table check/creation:', e.message);
                 }
 
+                // Create categoryGroups table
+                try {
+                    await createTableDirectly('category_groups');
+                } catch (e) {
+                    console.log('CategoryGroups table check/creation:', e.message);
+                }
+
+                // Create categoryMappings table
+                try {
+                    await createTableDirectly('category_mappings');
+                } catch (e) {
+                    console.log('CategoryMappings table check/creation:', e.message);
+                }
+
                 console.log('✓ Table initialization completed');
             } catch (error) {
                 console.log('Table initialization error:', error.message);
@@ -1821,6 +1835,39 @@
                 } else {
                     console.log('✓ No income found yet');
                     appData.income = [];
+                }
+
+                // Load categoryGroups
+                const { data: categoryGroups, error: cgError } = await supabaseClient
+                    .from('category_groups')
+                    .select('*')
+                    .order('name', { ascending: true });
+
+                if (!cgError && categoryGroups && categoryGroups.length > 0) {
+                    appData.categoryGroups = categoryGroups.map(cg => cg.name).sort();
+                    console.log('✓ Loaded category groups:', appData.categoryGroups.length);
+                } else if (cgError) {
+                    console.warn('⚠️ CategoryGroups table not found or error loading:', cgError.message);
+                    // Use default categoryGroups if table doesn't exist
+                } else {
+                    console.log('✓ No category groups found yet');
+                }
+
+                // Load categoryMapping
+                const { data: categoryMappings, error: cmError } = await supabaseClient
+                    .from('category_mappings')
+                    .select('*');
+
+                if (!cmError && categoryMappings && categoryMappings.length > 0) {
+                    appData.categoryMapping = {};
+                    categoryMappings.forEach(cm => {
+                        appData.categoryMapping[cm.category_name] = cm.group_name;
+                    });
+                    console.log('✓ Loaded category mappings:', Object.keys(appData.categoryMapping).length);
+                } else if (cmError) {
+                    console.warn('⚠️ CategoryMappings table not found or error loading:', cmError.message);
+                } else {
+                    console.log('✓ No category mappings found yet');
                 }
 
             } catch (error) {
@@ -2060,6 +2107,68 @@
                 console.log('✓ Scheme deleted from Supabase:', schemeName);
             } catch (error) {
                 console.error('Delete error:', error.message);
+            }
+        }
+
+        async function syncCategoryGroupToSupabase(groupName) {
+            if (!syncEnabled) return;
+
+            try {
+                const { data, error } = await supabaseClient
+                    .from('category_groups')
+                    .upsert({
+                        id: `group:${groupName.toLowerCase()}`,
+                        name: groupName
+                    });
+
+                if (error) throw error;
+                console.log('✓ Category group synced to Supabase:', groupName);
+            } catch (error) {
+                console.error('Sync error for category group:', error.message);
+            }
+        }
+
+        async function deleteCategoryGroupFromSupabase(groupName) {
+            if (!syncEnabled) return;
+
+            try {
+                const { error } = await supabaseClient
+                    .from('category_groups')
+                    .delete()
+                    .eq('name', groupName);
+
+                if (error) throw error;
+                console.log('✓ Category group deleted from Supabase:', groupName);
+            } catch (error) {
+                console.error('Delete error:', error.message);
+            }
+        }
+
+        async function syncCategoryMappingToSupabase(categoryName, groupName) {
+            if (!syncEnabled) return;
+
+            try {
+                if (groupName) {
+                    const { data, error } = await supabaseClient
+                        .from('category_mappings')
+                        .upsert({
+                            id: `mapping:${categoryName.toLowerCase()}`,
+                            category_name: categoryName,
+                            group_name: groupName
+                        });
+                    if (error) throw error;
+                    console.log('✓ Category mapping synced to Supabase:', categoryName, '->', groupName);
+                } else {
+                    // Delete mapping if group is unassigned
+                    const { error } = await supabaseClient
+                        .from('category_mappings')
+                        .delete()
+                        .eq('category_name', categoryName);
+                    if (error) throw error;
+                    console.log('✓ Category mapping deleted from Supabase:', categoryName);
+                }
+            } catch (error) {
+                console.error('Sync error for category mapping:', error.message);
             }
         }
 
@@ -3010,6 +3119,7 @@
             if (!appData.categoryGroups.includes(name)) {
                 appData.categoryGroups.push(name);
                 saveToLocalStorage();
+                syncCategoryGroupToSupabase(name);
                 renderCategoryGroupsUI();
                 renderCategoryMapping();
                 nameEl.value = '';
@@ -3023,9 +3133,13 @@
             appData.categoryGroups = (appData.categoryGroups || []).filter(g => g !== name);
             // unassign categories mapped to this group
             Object.keys(appData.categoryMapping || {}).forEach(cat => {
-                if (appData.categoryMapping[cat] === name) delete appData.categoryMapping[cat];
+                if (appData.categoryMapping[cat] === name) {
+                    delete appData.categoryMapping[cat];
+                    syncCategoryMappingToSupabase(cat, null);
+                }
             });
             saveToLocalStorage();
+            deleteCategoryGroupFromSupabase(name);
             renderCategoryGroupsUI();
             renderCategoryMapping();
             renderMasterGroupBreakdown();
@@ -3061,6 +3175,7 @@
                     appData.categoryMapping = appData.categoryMapping || {};
                     if (!val) delete appData.categoryMapping[cat]; else appData.categoryMapping[cat] = val;
                     saveToLocalStorage();
+                    syncCategoryMappingToSupabase(cat, val);
                     renderMasterGroupBreakdown();
                 };
                 row.appendChild(left);
