@@ -746,6 +746,7 @@
             <button class="tab-btn active" onclick="switchTab('expenses')">Expenses</button>
             <button class="tab-btn" onclick="switchTab('investments')">Investments</button>
             <button class="tab-btn" onclick="switchTab('income')">Income</button>
+            <button class="tab-btn" onclick="switchTab('categories')">Categories</button>
             <button class="tab-btn" onclick="switchTab('settlements')">Settlements</button>
         </div>
 
@@ -810,6 +811,12 @@
                         <option value="S.D">S.D</option>
                         <option value="P.G">P.G</option>
                         <option value="compiled">Compiled (S.D + P.G)</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Category</label>
+                    <select id="expenseCategoryFilter" onchange="applyExpenseFilters()">
+                        <option value="">All</option>
                     </select>
                 </div>
                 <div class="filter-group">
@@ -1089,6 +1096,47 @@
             </div>
         </div>
         <!-- END INCOME TAB -->
+
+        <!-- CATEGORIES TAB -->
+        <div id="categories" class="tab-content">
+            <div class="section-title">Category Groups</div>
+
+            <div class="form-section">
+                <h3>Manage Master Groups</h3>
+                <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px;">
+                    <input id="newCategoryGroupName" placeholder="New group name" style="flex:1; padding:8px; border:1px solid #ddd; border-radius:4px;" />
+                    <button class="add-btn" onclick="addCategoryGroup()">Add Group</button>
+                </div>
+                <div id="categoryGroupsList" style="display:flex; gap:8px; flex-wrap:wrap;"></div>
+            </div>
+
+            <div class="form-section">
+                <h3>Master Group Breakdown</h3>
+                <p style="color:#666; margin-bottom:10px;">Select a master group to see spending breakdown by individual categories.</p>
+                <div class="filters-row">
+                    <div class="filter-group">
+                        <label>Master Group</label>
+                        <select id="masterGroupFilter" onchange="renderMasterGroupBreakdown()">
+                            <option value="">Select a Group</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Year</label>
+                        <select id="breakdownYearFilter" onchange="renderMasterGroupBreakdown()">
+                            <option value="">All Years</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="masterGroupBreakdownContainer"></div>
+            </div>
+
+            <div class="form-section">
+                <h3>Map Categories to Groups</h3>
+                <p style="color:#666; margin-bottom:10px;">Choose a group for each category. Mappings are saved automatically.</p>
+                <div id="categoryMappingContainer"></div>
+            </div>
+        </div>
+        <!-- END CATEGORIES TAB -->
 
         <!-- Edit Income Modal -->
         <div id="editIncomeModal" class="modal-overlay">
@@ -1503,6 +1551,8 @@
             categories: ['Rent', 'Travel', 'Grocery', 'Entertainment', 'Utilities', 'Healthcare', 'Education', 'Other'],
             schemes: ['HDFC Index Fund', 'ICICI Balanced Fund', 'Axis Equity Fund', 'SBI Liquid Fund'],
             incomeCategories: ['Salary', 'Freelance', 'Bonus', 'Gift', 'Refund', 'Investment Returns', 'Other'],
+            categoryGroups: ['Essentials', 'Food', 'Travel', 'Vacation', 'Utilities', 'Other'],
+            categoryMapping: {}, // { categoryName: groupName }
             charts: [],
             googleApiKey: localStorage.getItem('googleApiKey') || '',
             supabaseConfig: { url: SUPABASE_URL, key: SUPABASE_KEY }
@@ -1530,6 +1580,8 @@
                     updateInvestmentStats();
                     updateIncomeStats();
                     populateYearFilters();
+                    renderCategoryGroupsUI();
+                    renderCategoryMapping();
                     renderSettlements();
                     saveToLocalStorage();
                 }).catch(err => {
@@ -1544,6 +1596,8 @@
                     updateInvestmentStats();
                     updateIncomeStats();
                     populateYearFilters();
+                    renderCategoryGroupsUI();
+                    renderCategoryMapping();
                 });
             } else {
                 console.log('Supabase sync disabled, using local storage only');
@@ -1556,6 +1610,8 @@
                 updateInvestmentStats();
                 updateIncomeStats();
                 populateYearFilters();
+                renderCategoryGroupsUI();
+                renderCategoryMapping();
             }
             console.log('App initialized');
         }
@@ -2024,6 +2080,44 @@
                 categorySelect.appendChild(option);
             });
 
+            // Expense category filter
+            const categoryFilter = document.getElementById('expenseCategoryFilter');
+            if (categoryFilter) {
+                categoryFilter.innerHTML = '<option value="">All</option>';
+                const cats = getAllDistinctCategories();
+                cats.forEach(cat => {
+                    const o = document.createElement('option');
+                    o.value = cat;
+                    o.textContent = cat;
+                    categoryFilter.appendChild(o);
+                });
+            }
+
+            // Categories dashboard - category filter
+            const categoriesCatFilter = document.getElementById('categoriesCategoryFilter');
+            if (categoriesCatFilter) {
+                categoriesCatFilter.innerHTML = '<option value="">All Categories</option>';
+                const cats2 = getAllDistinctCategories();
+                cats2.forEach(cat => {
+                    const o = document.createElement('option');
+                    o.value = cat;
+                    o.textContent = cat;
+                    categoriesCatFilter.appendChild(o);
+                });
+            }
+
+            // Master Group Filter
+            const masterGroupFilter = document.getElementById('masterGroupFilter');
+            if (masterGroupFilter) {
+                masterGroupFilter.innerHTML = '<option value="">Select a Group</option>';
+                (appData.categoryGroups || []).forEach(group => {
+                    const o = document.createElement('option');
+                    o.value = group;
+                    o.textContent = group;
+                    masterGroupFilter.appendChild(o);
+                });
+            }
+
             // Investment schemes
             const schemeSelect = document.getElementById('investmentScheme');
             schemeSelect.innerHTML = '<option value="">Select or Create Scheme</option>';
@@ -2057,7 +2151,7 @@
 
             const sortedYears = Array.from(years).sort((a, b) => b - a);
 
-            const yearSelectIds = ['expenseYearFilter', 'investmentYearFilter', 'incomeYearFilter'];
+            const yearSelectIds = ['expenseYearFilter', 'investmentYearFilter', 'incomeYearFilter', 'categoriesYearFilter', 'breakdownYearFilter'];
             yearSelectIds
                 .map(id => document.getElementById(id))
                 .filter(Boolean)
@@ -2130,6 +2224,7 @@
         function renderExpensesTable() {
             const tbody = document.getElementById('expensesTableBody');
             const person = document.getElementById('expensePersonFilter').value;
+            const categoryFilter = document.getElementById('expenseCategoryFilter')?.value || '';
             const year = document.getElementById('expenseYearFilter').value;
             const month = document.getElementById('expenseMonthFilter').value;
 
@@ -2147,6 +2242,10 @@
 
             if (month) {
                 filtered = filtered.filter(e => new Date(e.date).getMonth() + 1 == month);
+            }
+
+            if (categoryFilter) {
+                filtered = filtered.filter(e => e.category === categoryFilter);
             }
 
             tbody.innerHTML = '';
@@ -2175,6 +2274,7 @@
 
         function updateExpenseStats() {
             const person = document.getElementById('expensePersonFilter').value;
+            const categoryFilter = document.getElementById('expenseCategoryFilter')?.value || '';
             const year = document.getElementById('expenseYearFilter').value;
             const month = document.getElementById('expenseMonthFilter').value;
 
@@ -2192,6 +2292,10 @@
 
             if (month) {
                 filtered = filtered.filter(e => new Date(e.date).getMonth() + 1 == month);
+            }
+
+            if (categoryFilter) {
+                filtered = filtered.filter(e => e.category === categoryFilter);
             }
 
             // Check and display budget alerts
@@ -2868,6 +2972,220 @@
             updateIncomeStats();
             closeEditIncomeModal();
             showAlert('✓ Income updated successfully!', 'success');
+        }
+
+        // ==================== CATEGORY GROUPS / MAPPING FUNCTIONS ====================
+        function getAllDistinctCategories() {
+            const set = new Set(appData.categories || []);
+            (appData.expenses || []).forEach(e => {
+                if (e.category) set.add(e.category);
+            });
+            return Array.from(set).sort();
+        }
+
+        function renderCategoryGroupsUI() {
+            const container = document.getElementById('categoryGroupsList');
+            if (!container) return;
+            container.innerHTML = '';
+            (appData.categoryGroups || []).forEach(group => {
+                const el = document.createElement('div');
+                el.style.display = 'flex';
+                el.style.alignItems = 'center';
+                el.style.gap = '8px';
+                el.style.padding = '6px 10px';
+                el.style.background = '#f1f5f9';
+                el.style.borderRadius = '6px';
+                el.innerHTML = `<strong style="font-size:0.95em">${group}</strong> <button class="btn-delete" style="padding:4px 8px; font-size:0.8em">Delete</button>`;
+                el.querySelector('button').onclick = () => deleteCategoryGroup(group);
+                container.appendChild(el);
+            });
+        }
+
+        function addCategoryGroup() {
+            const nameEl = document.getElementById('newCategoryGroupName');
+            if (!nameEl) return;
+            const name = nameEl.value.trim();
+            if (!name) return showAlert('Enter a group name', 'error');
+            appData.categoryGroups = appData.categoryGroups || [];
+            if (!appData.categoryGroups.includes(name)) {
+                appData.categoryGroups.push(name);
+                saveToLocalStorage();
+                renderCategoryGroupsUI();
+                renderCategoryMapping();
+                nameEl.value = '';
+            } else {
+                showAlert('Group already exists', 'error');
+            }
+        }
+
+        function deleteCategoryGroup(name) {
+            if (!confirm('Delete group "' + name + '"? This will unassign mapped categories.')) return;
+            appData.categoryGroups = (appData.categoryGroups || []).filter(g => g !== name);
+            // unassign categories mapped to this group
+            Object.keys(appData.categoryMapping || {}).forEach(cat => {
+                if (appData.categoryMapping[cat] === name) delete appData.categoryMapping[cat];
+            });
+            saveToLocalStorage();
+            renderCategoryGroupsUI();
+            renderCategoryMapping();
+            renderMasterGroupBreakdown();
+        }
+
+        function renderCategoryMapping() {
+            const container = document.getElementById('categoryMappingContainer');
+            if (!container) return;
+            let categories = getAllDistinctCategories();
+            const selectedCat = document.getElementById('categoriesCategoryFilter')?.value || '';
+            if (selectedCat) categories = categories.filter(c => c === selectedCat);
+            container.innerHTML = '';
+            categories.forEach(cat => {
+                const row = document.createElement('div');
+                row.style.display = 'flex';
+                row.style.alignItems = 'center';
+                row.style.justifyContent = 'space-between';
+                row.style.padding = '8px 0';
+                row.style.borderBottom = '1px solid #f0f0f0';
+                const left = document.createElement('div');
+                left.textContent = cat;
+                left.style.flex = '1';
+                
+                const sel = document.createElement('select');
+                const current = (appData.categoryMapping && appData.categoryMapping[cat]) || '';
+                const optNone = document.createElement('option'); optNone.value = ''; optNone.textContent = 'Unassigned'; sel.appendChild(optNone);
+                (appData.categoryGroups || []).forEach(g => {
+                    const o = document.createElement('option'); o.value = g; o.textContent = g; sel.appendChild(o);
+                });
+                sel.value = current;
+                sel.onchange = () => {
+                    const val = sel.value;
+                    appData.categoryMapping = appData.categoryMapping || {};
+                    if (!val) delete appData.categoryMapping[cat]; else appData.categoryMapping[cat] = val;
+                    saveToLocalStorage();
+                    renderMasterGroupBreakdown();
+                };
+                row.appendChild(left);
+                row.appendChild(sel);
+                container.appendChild(row);
+            });
+            
+        }
+
+        function renderMasterGroupBreakdown() {
+            const container = document.getElementById('masterGroupBreakdownContainer');
+            if (!container) return;
+            const masterGroup = document.getElementById('masterGroupFilter')?.value || '';
+            const year = document.getElementById('breakdownYearFilter')?.value || '';
+            
+            if (!masterGroup) {
+                container.innerHTML = '<p style="color:#999; margin-top:10px;">Select a master group to see the breakdown.</p>';
+                return;
+            }
+
+            // Find all categories mapped to this master group
+            const mappedCats = Object.keys(appData.categoryMapping || {}).filter(
+                cat => appData.categoryMapping[cat] === masterGroup
+            );
+
+            if (mappedCats.length === 0) {
+                container.innerHTML = '<p style="color:#999; margin-top:10px;">No categories mapped to this group.</p>';
+                return;
+            }
+
+            // Filter expenses by mapped categories and optional year
+            let filtered = (appData.expenses || []).filter(e => mappedCats.includes(e.category));
+            if (year) {
+                filtered = filtered.filter(e => new Date(e.date).getFullYear() == year);
+            }
+
+            // Aggregate by individual category
+            const breakdown = {};
+            filtered.forEach(e => {
+                if (!breakdown[e.category]) breakdown[e.category] = { amount: 0, count: 0 };
+                breakdown[e.category].amount += parseFloat(e.amount || 0);
+                breakdown[e.category].count += 1;
+            });
+
+            const rows = Object.keys(breakdown).sort().map(cat => ({
+                category: cat,
+                amount: breakdown[cat].amount,
+                count: breakdown[cat].count
+            }));
+
+            // Compute total income for the selected year (or all years if not specified)
+            let totalIncome = 0;
+            (appData.income || []).forEach(inc => {
+                if (year) {
+                    if (new Date(inc.date).getFullYear() == year) totalIncome += parseFloat(inc.amount || 0);
+                } else {
+                    totalIncome += parseFloat(inc.amount || 0);
+                }
+            });
+
+            container.innerHTML = '';
+            
+            if (rows.length === 0) {
+                container.innerHTML = '<p style="color:#999; margin-top:10px;">No expenses found for this group in the selected period.</p>';
+                return;
+            }
+
+            const table = document.createElement('table');
+            table.className = 'data-table';
+            const thead = document.createElement('thead');
+            thead.innerHTML = '<tr><th>Category</th><th>Amount</th><th>Count</th><th>% of Income</th></tr>';
+            const tbody = document.createElement('tbody');
+            
+            let total = 0;
+            rows.forEach(r => {
+                const percent = totalIncome ? (r.amount / totalIncome * 100) : null;
+                const percentDisplay = percent === null ? '-' : percent.toFixed(1) + '%';
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td>${r.category}</td><td>₹${r.amount.toFixed(2)}</td><td>${r.count}</td><td>${percentDisplay}</td>`;
+                tbody.appendChild(tr);
+                total += r.amount;
+            });
+
+            const totalPercent = totalIncome ? (total / totalIncome * 100).toFixed(1) + '%' : '-';
+
+            const tfootRow = document.createElement('tr');
+            tfootRow.style.fontWeight = 'bold';
+            tfootRow.style.backgroundColor = '#f9fafb';
+            tfootRow.innerHTML = `<td>Total</td><td>₹${total.toFixed(2)}</td><td>${rows.reduce((s, r) => s + r.count, 0)}</td><td>${totalPercent}</td>`;
+            tbody.appendChild(tfootRow);
+
+            table.appendChild(thead);
+            table.appendChild(tbody);
+            container.appendChild(table);
+        }
+
+        function renderCategoryAggregates() {
+            const container = document.getElementById('categoryAggregatesContainer');
+            if (!container) return;
+            const year = document.getElementById('categoriesYearFilter')?.value || '';
+            const month = document.getElementById('categoriesMonthFilter')?.value || '';
+            const categoryFilter = document.getElementById('categoriesCategoryFilter')?.value || '';
+            let filtered = appData.expenses || [];
+            if (year) filtered = filtered.filter(e => new Date(e.date).getFullYear() == year);
+            if (month) filtered = filtered.filter(e => (new Date(e.date).getMonth() + 1) == month);
+            if (categoryFilter) filtered = filtered.filter(e => e.category === categoryFilter);
+            const map = {};
+            filtered.forEach(e => {
+                const grp = (appData.categoryMapping && appData.categoryMapping[e.category]) || 'Unassigned';
+                map[grp] = map[grp] || { amount: 0, count: 0 };
+                map[grp].amount += parseFloat(e.amount || 0);
+                map[grp].count += 1;
+            });
+            const rows = Object.keys(map).sort().map(g => ({ group: g, amount: map[g].amount, count: map[g].count }));
+            container.innerHTML = '';
+            const table = document.createElement('table'); table.className = 'data-table';
+            const thead = document.createElement('thead'); thead.innerHTML = '<tr><th>Group</th><th>Amount</th><th>Count</th></tr>';
+            const tbody = document.createElement('tbody');
+            rows.forEach(r => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td>${r.group}</td><td>₹${r.amount.toFixed(2)}</td><td>${r.count}</td>`;
+                tbody.appendChild(tr);
+            });
+            table.appendChild(thead); table.appendChild(tbody);
+            container.appendChild(table);
         }
 
         // ==================== SETTLEMENT FUNCTIONS ====================
