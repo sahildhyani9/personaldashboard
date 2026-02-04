@@ -1117,7 +1117,7 @@
                     <div class="filter-group">
                         <label>Master Group</label>
                         <select id="masterGroupFilter" onchange="renderMasterGroupBreakdown()">
-                            <option value="">Select a Group</option>
+                            <option value="" selected>All Categories</option>
                         </select>
                     </div>
                     <div class="filter-group">
@@ -1710,6 +1710,7 @@ ON category_mappings FOR ALL USING (true) WITH CHECK (true);</pre>
                     populateYearFilters();
                     renderCategoryGroupsUI();
                     renderCategoryMapping();
+                    renderMasterGroupBreakdown();
                     renderSettlements();
                     saveToLocalStorage();
                 }).catch(err => {
@@ -1740,6 +1741,7 @@ ON category_mappings FOR ALL USING (true) WITH CHECK (true);</pre>
                 populateYearFilters();
                 renderCategoryGroupsUI();
                 renderCategoryMapping();
+                renderMasterGroupBreakdown();
             }
             console.log('App initialized');
         }
@@ -2452,7 +2454,7 @@ ON category_mappings FOR ALL USING (true) WITH CHECK (true);</pre>
             // Master Group Filter
             const masterGroupFilter = document.getElementById('masterGroupFilter');
             if (masterGroupFilter) {
-                masterGroupFilter.innerHTML = '<option value="">Select a Group</option>';
+                masterGroupFilter.innerHTML = '<option value="" selected>All Categories</option>';
                 (appData.categoryGroups || []).forEach(group => {
                     const o = document.createElement('option');
                     o.value = group;
@@ -3585,14 +3587,220 @@ ON category_mappings FOR ALL USING (true) WITH CHECK (true);</pre>
             
         }
 
+        function renderAllMasterGroupsBreakdown(container, year) {
+            container.innerHTML = '';
+            const selectedYear = year || new Date().getFullYear();
+            
+            // Get all master groups
+            const allGroups = appData.categoryGroups || [];
+            if (allGroups.length === 0) {
+                container.innerHTML = '<p style="color:#999; margin-top:10px;">No master categories created yet.</p>';
+                return;
+            }
+
+            // Compute total income for the selected year
+            let totalIncome = 0;
+            (appData.income || []).forEach(inc => {
+                if (new Date(inc.date).getFullYear() == selectedYear) totalIncome += parseFloat(inc.amount || 0);
+            });
+
+            let grandTotalSpent = 0;
+            let grandTotalBudget = 0;
+
+            // First pass: calculate grand totals
+            allGroups.forEach(groupName => {
+                const mappedCats = Object.keys(appData.categoryMapping || {}).filter(
+                    cat => appData.categoryMapping[cat] === groupName
+                );
+                let filtered = (appData.expenses || []).filter(e => mappedCats.includes(e.category));
+                filtered = filtered.filter(e => new Date(e.date).getFullYear() == selectedYear);
+
+                let totalSpent = 0;
+                filtered.forEach(e => {
+                    totalSpent += parseFloat(e.amount || 0);
+                });
+                grandTotalSpent += totalSpent;
+
+                const budgetKey = `${groupName}:${selectedYear}`;
+                const budget = appData.categoryGroupBudgets && appData.categoryGroupBudgets[budgetKey] ? 
+                               parseFloat(appData.categoryGroupBudgets[budgetKey]) : null;
+                if (budget !== null) {
+                    grandTotalBudget += budget;
+                }
+            });
+
+            // Create and add total summary card at the TOP
+            const totalCard = document.createElement('div');
+            totalCard.style.cssText = `
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                border-radius: 8px;
+                padding: 20px;
+                margin-bottom: 30px;
+            `;
+            
+            let totalHTML = `
+                <h3 style="margin: 0 0 15px 0;">Total Summary (${selectedYear})</h3>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;">
+                    <div>
+                        <p style="margin: 0 0 5px 0; opacity: 0.9; font-size: 0.9em;">Total Spent</p>
+                        <p style="margin: 0; font-size: 1.8em; font-weight: bold;">₹${grandTotalSpent.toFixed(2)}</p>
+                    </div>
+            `;
+            
+            if (grandTotalBudget > 0) {
+                const remainingBudget = grandTotalBudget - grandTotalSpent;
+                const statusColor = remainingBudget >= 0 ? 'rgba(40, 167, 69, 0.9)' : 'rgba(220, 53, 69, 0.9)';
+                const statusText = remainingBudget >= 0 ? 
+                    `₹${remainingBudget.toFixed(2)} remaining` : 
+                    `₹${Math.abs(remainingBudget).toFixed(2)} overboard`;
+                
+                totalHTML += `
+                    <div>
+                        <p style="margin: 0 0 5px 0; opacity: 0.9; font-size: 0.9em;">Total Budget</p>
+                        <p style="margin: 0; font-size: 1.8em; font-weight: bold;">₹${grandTotalBudget.toFixed(2)}</p>
+                    </div>
+                    <div style="background: ${statusColor}; padding: 10px; border-radius: 4px; text-align: center;">
+                        <p style="margin: 0 0 5px 0; opacity: 0.9; font-size: 0.9em;">Status</p>
+                        <p style="margin: 0; font-size: 1.5em; font-weight: bold;">${statusText}</p>
+                        <p style="margin: 5px 0 0 0; opacity: 0.9; font-size: 0.85em;">${(grandTotalSpent/grandTotalBudget*100).toFixed(1)}% used</p>
+                    </div>
+                `;
+            } else {
+                totalHTML += `
+                    <div>
+                        <p style="margin: 0 0 5px 0; opacity: 0.9; font-size: 0.9em;">Total Income</p>
+                        <p style="margin: 0; font-size: 1.8em; font-weight: bold;">₹${totalIncome.toFixed(2)}</p>
+                    </div>
+                    <div>
+                        <p style="margin: 0 0 5px 0; opacity: 0.9; font-size: 0.9em;">Remaining</p>
+                        <p style="margin: 0; font-size: 1.8em; font-weight: bold;">₹${(totalIncome - grandTotalSpent).toFixed(2)}</p>
+                    </div>
+                `;
+            }
+            
+            totalHTML += `</div>`;
+            totalCard.innerHTML = totalHTML;
+            container.appendChild(totalCard);
+
+            // Create a card for each master group
+            allGroups.forEach(groupName => {
+                // Find all categories mapped to this master group
+                const mappedCats = Object.keys(appData.categoryMapping || {}).filter(
+                    cat => appData.categoryMapping[cat] === groupName
+                );
+
+                // Filter expenses by mapped categories and year
+                let filtered = (appData.expenses || []).filter(e => mappedCats.includes(e.category));
+                filtered = filtered.filter(e => new Date(e.date).getFullYear() == selectedYear);
+
+                // Aggregate by category
+                const breakdown = {};
+                filtered.forEach(e => {
+                    if (!breakdown[e.category]) breakdown[e.category] = { amount: 0, count: 0 };
+                    breakdown[e.category].amount += parseFloat(e.amount || 0);
+                    breakdown[e.category].count += 1;
+                });
+
+                const rows = Object.keys(breakdown).sort().map(cat => ({
+                    category: cat,
+                    amount: breakdown[cat].amount,
+                    count: breakdown[cat].count
+                }));
+
+                let totalSpent = 0;
+                rows.forEach(r => totalSpent += r.amount);
+                grandTotalSpent += totalSpent;
+
+                // Get budget for this group and year
+                const budgetKey = `${groupName}:${selectedYear}`;
+                const budget = appData.categoryGroupBudgets && appData.categoryGroupBudgets[budgetKey] ? 
+                               parseFloat(appData.categoryGroupBudgets[budgetKey]) : null;
+                
+                if (budget !== null) {
+                    grandTotalBudget += budget;
+                }
+
+                // Create card for this group
+                const card = document.createElement('div');
+                card.style.cssText = `
+                    background: #fff;
+                    border: 1px solid #e0e0e0;
+                    border-radius: 8px;
+                    padding: 20px;
+                    margin-bottom: 20px;
+                `;
+
+                // Header with group name and budget status
+                const header = document.createElement('div');
+                header.style.cssText = 'margin-bottom: 15px;';
+                
+                let headerHTML = `<h3 style="margin: 0 0 10px 0; color: #333;">${groupName}</h3>`;
+                
+                if (budget !== null) {
+                    const remaining = budget - totalSpent;
+                    const budgetStatusColor = remaining >= 0 ? '#28a745' : '#dc3545';
+                    const statusText = remaining >= 0 ? 
+                        `₹${remaining.toFixed(2)} remaining` : 
+                        `₹${Math.abs(remaining).toFixed(2)} overboard`;
+                    
+                    headerHTML += `
+                        <div style="display: flex; justify-content: space-between; align-items: center; background: #f8f9fa; padding: 10px; border-radius: 4px; border-left: 4px solid ${budgetStatusColor};">
+                            <div style="font-size: 0.9em; color: #666;">
+                                <strong>Budget:</strong> ₹${budget.toFixed(2)} | <strong>Spent:</strong> ₹${totalSpent.toFixed(2)}
+                            </div>
+                            <div style="text-align: right;">
+                                <p style="margin: 0; color: ${budgetStatusColor}; font-weight: bold;">${statusText}</p>
+                                <p style="margin: 5px 0 0 0; color: #999; font-size: 0.85em;">${(totalSpent/budget*100).toFixed(1)}% used</p>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                header.innerHTML = headerHTML;
+                card.appendChild(header);
+
+                // If no expenses, show message
+                if (rows.length === 0) {
+                    const msg = document.createElement('p');
+                    msg.style.cssText = 'color: #999; margin: 10px 0; font-size: 0.9em;';
+                    msg.textContent = 'No expenses for this group in ' + selectedYear + '.';
+                    card.appendChild(msg);
+                } else {
+                    // Create mini table for this group
+                    const table = document.createElement('table');
+                    table.className = 'data-table';
+                    table.style.cssText = 'width: 100%; font-size: 0.9em;';
+                    const thead = document.createElement('thead');
+                    thead.innerHTML = '<tr><th>Category</th><th>Amount</th><th>Count</th><th>% of Income</th></tr>';
+                    const tbody = document.createElement('tbody');
+                    
+                    rows.forEach(r => {
+                        const percent = totalIncome ? (r.amount / totalIncome * 100) : null;
+                        const percentDisplay = percent === null ? '-' : percent.toFixed(1) + '%';
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `<td>${r.category}</td><td>₹${r.amount.toFixed(2)}</td><td>${r.count}</td><td>${percentDisplay}</td>`;
+                        tbody.appendChild(tr);
+                    });
+                    
+                    table.appendChild(thead);
+                    table.appendChild(tbody);
+                    card.appendChild(table);
+                }
+
+                container.appendChild(card);
+            });
+        }
+
         function renderMasterGroupBreakdown() {
             const container = document.getElementById('masterGroupBreakdownContainer');
             if (!container) return;
             const masterGroup = document.getElementById('masterGroupFilter')?.value || '';
             const year = document.getElementById('breakdownYearFilter')?.value || '';
             
+            // If no group selected, show breakdown for ALL master groups
             if (!masterGroup) {
-                container.innerHTML = '<p style="color:#999; margin-top:10px;">Select a master group to see the breakdown.</p>';
+                renderAllMasterGroupsBreakdown(container, year);
                 return;
             }
 
