@@ -1169,6 +1169,122 @@
             </div>
         </div>
 
+        <!-- Supabase Setup Modal -->
+        <div id="supabaseSetupModal" class="modal-overlay">
+            <div class="modal-box" style="max-width: 700px; max-height: 80vh; overflow-y: auto;">
+                <span class="modal-close" onclick="closeSupabaseSetupModal()">&times;</span>
+                <h2 class="modal-title">⚠️ Supabase Setup Required</h2>
+                <div style="color: #333; line-height: 1.6;">
+                    <p><strong>The following tables need to be created in your Supabase database:</strong></p>
+                    <ul style="margin: 15px 0; padding-left: 20px;">
+                        <li>category_groups</li>
+                        <li>category_mappings</li>
+                    </ul>
+                    
+                    <p><strong>Steps to set up:</strong></p>
+                    <ol style="margin: 15px 0; padding-left: 20px;">
+                        <li>Go to <a href="https://app.supabase.com" target="_blank" style="color: #667eea;">https://app.supabase.com</a></li>
+                        <li>Select your project: <code style="background: #f5f5f5; padding: 2px 5px;">ngqmqmffvscxkoydtpua</code></li>
+                        <li>Click <strong>SQL Editor</strong> in the left menu</li>
+                        <li>Click <strong>New Query</strong></li>
+                        <li>Copy and paste the SQL below</li>
+                        <li>Click <strong>Run</strong></li>
+                        <li>Refresh this dashboard</li>
+                    </ol>
+
+                    <p><strong>SQL to run:</strong></p>
+                    <div style="background: #f5f5f5; padding: 15px; border-radius: 5px; font-family: monospace; font-size: 12px; overflow-x: auto; margin: 10px 0;">
+<pre>-- Create category_groups table
+CREATE TABLE IF NOT EXISTS category_groups (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Create category_mappings table
+CREATE TABLE IF NOT EXISTS category_mappings (
+    id TEXT PRIMARY KEY,
+    category_name TEXT NOT NULL,
+    group_name TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(category_name)
+);
+
+-- Enable Row Level Security
+ALTER TABLE category_groups ENABLE ROW LEVEL SECURITY;
+ALTER TABLE category_mappings ENABLE ROW LEVEL SECURITY;
+
+-- Create policies
+CREATE POLICY "Allow all operations on category_groups" 
+ON category_groups FOR ALL USING (true) WITH CHECK (true);
+
+CREATE POLICY "Allow all operations on category_mappings" 
+ON category_mappings FOR ALL USING (true) WITH CHECK (true);</pre>
+                    </div>
+
+                    <p style="color: #666; font-size: 0.9em;"><strong>Note:</strong> Once setup is complete, your master categories and mappings will sync automatically with Supabase.</p>
+                </div>
+                <button onclick="closeSupabaseSetupModal()" class="modal-save-btn" style="margin-top: 20px;">I've completed setup</button>
+            </div>
+        </div>
+
+        <!-- Category Group Budget Modal -->
+        <div id="budgetGroupModal" class="modal-overlay">
+            <div class="modal-box" style="max-width: 500px;">
+                <span class="modal-close" onclick="closeBudgetModal()">&times;</span>
+                <h2 class="modal-title">Set Budget for <span id="budgetGroupName"></span></h2>
+                <div style="margin: 20px 0;">
+                    <div class="modal-form-group" style="margin-bottom: 15px;">
+                        <label>Year</label>
+                        <select id="budgetYearInput" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                            <option value="">Select Year</option>
+                        </select>
+                    </div>
+                    <div class="modal-form-group">
+                        <label>Budget Amount (₹)</label>
+                        <input type="number" id="budgetAmountInput" placeholder="0.00" min="0" step="0.01" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    </div>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="saveBudget()" class="modal-save-btn" style="flex: 1;">Save Budget</button>
+                    <button onclick="closeBudgetModal()" class="secondary-btn" style="flex: 1;">Skip</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Edit Category Group Modal -->
+        <div id="editCategoryGroupModal" class="modal-overlay">
+            <div class="modal-box" style="max-width: 500px;">
+                <span class="modal-close" onclick="closeEditCategoryGroupModal()">&times;</span>
+                <h2 class="modal-title">Edit Category Group</h2>
+                <div style="margin: 20px 0;">
+                    <div class="modal-form-group">
+                        <label>Group Name</label>
+                        <input type="text" id="editCategoryGroupNameInput" placeholder="Group name" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    </div>
+                    <div class="modal-form-group" style="margin-top: 15px;">
+                        <label>Edit Budget</label>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                            <div>
+                                <label style="font-size: 12px; color: #666; display: block; margin-bottom: 5px;">Year</label>
+                                <input type="number" id="editBudgetYearInput" min="2020" max="2050" value="2026" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                            </div>
+                            <div>
+                                <label style="font-size: 12px; color: #666; display: block; margin-bottom: 5px;">Budget Amount</label>
+                                <input type="number" id="editBudgetAmountInput" min="0" step="0.01" placeholder="0" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="saveEditCategoryGroup()" class="modal-save-btn" style="flex: 1;">Save Changes</button>
+                    <button onclick="closeEditCategoryGroupModal()" class="secondary-btn" style="flex: 1;">Cancel</button>
+                </div>
+            </div>
+        </div>
+
         <!-- SETTLEMENTS TAB -->
         <div id="settlements" class="tab-content">
             <div class="section-title">Settlements & Balance</div>
@@ -1553,6 +1669,7 @@
             incomeCategories: ['Salary', 'Freelance', 'Bonus', 'Gift', 'Refund', 'Investment Returns', 'Other'],
             categoryGroups: ['Essentials', 'Food', 'Travel', 'Vacation', 'Utilities', 'Other'],
             categoryMapping: {}, // { categoryName: groupName }
+            categoryGroupBudgets: {}, // { 'groupName:year': budget_amount }
             charts: [],
             googleApiKey: localStorage.getItem('googleApiKey') || '',
             supabaseConfig: { url: SUPABASE_URL, key: SUPABASE_KEY }
@@ -1566,7 +1683,18 @@
             console.log('Sync enabled:', syncEnabled);
             console.log('Supabase client:', supabaseClient ? 'ready' : 'not ready');
             
-            loadFromLocalStorage();
+            // Only load from localStorage if sync is disabled
+            if (!syncEnabled) {
+                loadFromLocalStorage();
+            } else {
+                // If sync is enabled, clear data first - we'll load from Supabase only
+                appData.expenses = [];
+                appData.investments = [];
+                appData.settlements = [];
+                appData.income = [];
+                appData.categoryGroupBudgets = {};
+            }
+
             if (syncEnabled && supabaseClient) {
                 loadFromSupabase().then(() => {
                     console.log('Supabase data loaded');
@@ -1688,6 +1816,13 @@
                     console.log('CategoryMappings table check/creation:', e.message);
                 }
 
+                // Create categoryGroupBudgets table
+                try {
+                    await createTableDirectly('category_group_budgets');
+                } catch (e) {
+                    console.log('CategoryGroupBudgets table check/creation:', e.message);
+                }
+
                 console.log('✓ Table initialization completed');
             } catch (error) {
                 console.log('Table initialization error:', error.message);
@@ -1722,6 +1857,14 @@
                 // Initialize tables first
                 await initializeSupabaseTables();
 
+                // Clear all data arrays first - we'll only load what exists in Supabase
+                appData.expenses = [];
+                appData.investments = [];
+                appData.settlements = [];
+                appData.income = [];
+                appData.categoryGroups = ['Essentials', 'Food', 'Travel', 'Vacation', 'Utilities', 'Other']; // Keep defaults
+                appData.categoryMapping = {};
+
                 // Load categories
                 const { data: categories, error: catError } = await supabaseClient
                     .from('categories')
@@ -1753,6 +1896,9 @@
                         timestamp: new Date(e.created_at)
                     }));
                     console.log('✓ Loaded expenses:', appData.expenses.length);
+                } else {
+                    console.log('✓ No expenses found in Supabase');
+                    appData.expenses = [];
                 }
 
                 // Load investments
@@ -1774,6 +1920,9 @@
                         timestamp: new Date(i.created_at)
                     }));
                     console.log('✓ Loaded investments:', appData.investments.length);
+                } else {
+                    console.log('✓ No investments found in Supabase');
+                    appData.investments = [];
                 }
 
                 // Load schemes
@@ -1802,12 +1951,9 @@
                         paidOn: s.paid_on
                     }));
                     console.log('✓ Loaded settlements:', appData.settlements.length);
-                } else if (settError) {
-                    console.warn('⚠️ Settlements table not found or error loading:', settError.message);
-                    appData.settlements = [];  // Initialize as empty array
                 } else {
                     console.log('✓ No settlements found yet');
-                    appData.settlements = [];  // Initialize as empty array
+                    appData.settlements = [];
                 }
 
                 // Load income
@@ -1829,11 +1975,8 @@
                         timestamp: new Date(i.created_at)
                     }));
                     console.log('✓ Loaded income:', appData.income.length);
-                } else if (incError) {
-                    console.warn('⚠️ Income table not found or error loading:', incError.message);
-                    appData.income = [];
                 } else {
-                    console.log('✓ No income found yet');
+                    console.log('✓ No income found in Supabase');
                     appData.income = [];
                 }
 
@@ -1846,11 +1989,9 @@
                 if (!cgError && categoryGroups && categoryGroups.length > 0) {
                     appData.categoryGroups = categoryGroups.map(cg => cg.name).sort();
                     console.log('✓ Loaded category groups:', appData.categoryGroups.length);
-                } else if (cgError) {
-                    console.warn('⚠️ CategoryGroups table not found or error loading:', cgError.message);
-                    // Use default categoryGroups if table doesn't exist
                 } else {
-                    console.log('✓ No category groups found yet');
+                    console.log('✓ No category groups found in Supabase, using defaults');
+                    // Keep the default categoryGroups
                 }
 
                 // Load categoryMapping
@@ -1864,10 +2005,25 @@
                         appData.categoryMapping[cm.category_name] = cm.group_name;
                     });
                     console.log('✓ Loaded category mappings:', Object.keys(appData.categoryMapping).length);
-                } else if (cmError) {
-                    console.warn('⚠️ CategoryMappings table not found or error loading:', cmError.message);
                 } else {
-                    console.log('✓ No category mappings found yet');
+                    console.log('✓ No category mappings found in Supabase');
+                    appData.categoryMapping = {};
+                }
+
+                // Load categoryGroupBudgets
+                const { data: budgets, error: budgetError } = await supabaseClient
+                    .from('category_group_budgets')
+                    .select('*');
+
+                if (!budgetError && budgets && budgets.length > 0) {
+                    appData.categoryGroupBudgets = {};
+                    budgets.forEach(b => {
+                        appData.categoryGroupBudgets[`${b.group_name}:${b.year}`] = b.budget_amount;
+                    });
+                    console.log('✓ Loaded category group budgets:', Object.keys(appData.categoryGroupBudgets).length);
+                } else {
+                    console.log('✓ No category group budgets found in Supabase');
+                    appData.categoryGroupBudgets = {};
                 }
 
             } catch (error) {
@@ -2111,7 +2267,10 @@
         }
 
         async function syncCategoryGroupToSupabase(groupName) {
-            if (!syncEnabled) return;
+            if (!syncEnabled) {
+                console.log('Sync disabled, skipping categoryGroup sync');
+                return;
+            }
 
             try {
                 const { data, error } = await supabaseClient
@@ -2121,15 +2280,28 @@
                         name: groupName
                     });
 
-                if (error) throw error;
+                if (error) {
+                    console.error('Supabase error for category group:', error);
+                    if (error.message && error.message.includes('does not exist')) {
+                        console.log('⚠️ category_groups table does not exist. Opening setup guide...');
+                        openSupabaseSetupModal();
+                    }
+                    throw error;
+                }
                 console.log('✓ Category group synced to Supabase:', groupName);
             } catch (error) {
                 console.error('Sync error for category group:', error.message);
+                if (!error.message.includes('does not exist')) {
+                    showAlert('Error syncing category group: ' + error.message, 'error');
+                }
             }
         }
 
         async function deleteCategoryGroupFromSupabase(groupName) {
-            if (!syncEnabled) return;
+            if (!syncEnabled) {
+                console.log('Sync disabled, skipping categoryGroup delete');
+                return;
+            }
 
             try {
                 const { error } = await supabaseClient
@@ -2137,15 +2309,22 @@
                     .delete()
                     .eq('name', groupName);
 
-                if (error) throw error;
+                if (error) {
+                    console.error('Supabase error deleting category group:', error);
+                    throw error;
+                }
                 console.log('✓ Category group deleted from Supabase:', groupName);
             } catch (error) {
                 console.error('Delete error:', error.message);
+                showAlert('Error deleting category group: ' + error.message, 'error');
             }
         }
 
         async function syncCategoryMappingToSupabase(categoryName, groupName) {
-            if (!syncEnabled) return;
+            if (!syncEnabled) {
+                console.log('Sync disabled, skipping categoryMapping sync');
+                return;
+            }
 
             try {
                 if (groupName) {
@@ -2156,7 +2335,14 @@
                             category_name: categoryName,
                             group_name: groupName
                         });
-                    if (error) throw error;
+                    if (error) {
+                        console.error('Supabase error for category mapping:', error);
+                        if (error.message && error.message.includes('does not exist')) {
+                            console.log('⚠️ category_mappings table does not exist. Opening setup guide...');
+                            openSupabaseSetupModal();
+                        }
+                        throw error;
+                    }
                     console.log('✓ Category mapping synced to Supabase:', categoryName, '->', groupName);
                 } else {
                     // Delete mapping if group is unassigned
@@ -2164,11 +2350,59 @@
                         .from('category_mappings')
                         .delete()
                         .eq('category_name', categoryName);
-                    if (error) throw error;
+                    if (error) {
+                        console.error('Supabase error deleting category mapping:', error);
+                        throw error;
+                    }
                     console.log('✓ Category mapping deleted from Supabase:', categoryName);
                 }
             } catch (error) {
                 console.error('Sync error for category mapping:', error.message);
+                if (!error.message.includes('does not exist')) {
+                    showAlert('Error syncing category mapping: ' + error.message, 'error');
+                }
+            }
+        }
+
+        async function syncCategoryGroupBudgetToSupabase(groupName, year, budgetAmount) {
+            if (!syncEnabled) {
+                console.log('Sync disabled, skipping budget sync');
+                return;
+            }
+
+            try {
+                if (budgetAmount && budgetAmount > 0) {
+                    const { data, error } = await supabaseClient
+                        .from('category_group_budgets')
+                        .upsert({
+                            id: `budget:${groupName.toLowerCase()}:${year}`,
+                            group_name: groupName,
+                            year: year,
+                            budget_amount: budgetAmount
+                        });
+                    if (error) {
+                        console.error('Supabase error for budget:', error);
+                        if (error.message && error.message.includes('does not exist')) {
+                            openSupabaseSetupModal();
+                        }
+                        throw error;
+                    }
+                    console.log('✓ Category group budget synced:', groupName, year, '→ ₹' + budgetAmount);
+                } else {
+                    // Delete budget if amount is 0 or empty
+                    const { error } = await supabaseClient
+                        .from('category_group_budgets')
+                        .delete()
+                        .eq('group_name', groupName)
+                        .eq('year', year);
+                    if (error) throw error;
+                    console.log('✓ Category group budget deleted:', groupName, year);
+                }
+            } catch (error) {
+                console.error('Sync error for category group budget:', error.message);
+                if (!error.message.includes('does not exist')) {
+                    showAlert('Error syncing budget: ' + error.message, 'error');
+                }
             }
         }
 
@@ -3050,6 +3284,14 @@
             document.getElementById('editIncomeForm').reset();
         }
 
+        function openSupabaseSetupModal() {
+            document.getElementById('supabaseSetupModal').style.display = 'flex';
+        }
+
+        function closeSupabaseSetupModal() {
+            document.getElementById('supabaseSetupModal').style.display = 'none';
+        }
+
         async function saveEditedIncome() {
             const id = parseInt(document.getElementById('editIncomeModal').dataset.currentId);
             const incomeItem = appData.income.find(i => i.id === id);
@@ -3083,6 +3325,159 @@
             showAlert('✓ Income updated successfully!', 'success');
         }
 
+        // ==================== CATEGORY GROUP BUDGET FUNCTIONS ====================
+        let currentBudgetGroup = null;
+
+        function showBudgetModal(groupName) {
+            currentBudgetGroup = groupName;
+            document.getElementById('budgetGroupName').textContent = groupName;
+            
+            // Populate year dropdown with current year and next few years
+            const yearSelect = document.getElementById('budgetYearInput');
+            yearSelect.innerHTML = '<option value="">Select Year</option>';
+            const currentYear = new Date().getFullYear();
+            for (let y = currentYear - 1; y <= currentYear + 3; y++) {
+                const opt = document.createElement('option');
+                opt.value = y;
+                opt.textContent = y;
+                yearSelect.appendChild(opt);
+            }
+            yearSelect.value = currentYear; // Default to current year
+            
+            document.getElementById('budgetAmountInput').value = '';
+            document.getElementById('budgetGroupModal').style.display = 'flex';
+        }
+
+        function closeBudgetModal() {
+            document.getElementById('budgetGroupModal').style.display = 'none';
+            currentBudgetGroup = null;
+        }
+
+        function saveBudget() {
+            if (!currentBudgetGroup) return;
+            
+            const year = parseInt(document.getElementById('budgetYearInput').value);
+            const amount = parseFloat(document.getElementById('budgetAmountInput').value);
+            
+            if (!year) {
+                showAlert('Please select a year', 'error');
+                return;
+            }
+            
+            if (amount > 0) {
+                appData.categoryGroupBudgets = appData.categoryGroupBudgets || {};
+                appData.categoryGroupBudgets[`${currentBudgetGroup}:${year}`] = amount;
+                saveToLocalStorage();
+                syncCategoryGroupBudgetToSupabase(currentBudgetGroup, year, amount);
+                showAlert('✓ Budget saved for ' + currentBudgetGroup + ' (' + year + ')', 'success');
+            }
+            
+            closeBudgetModal();
+        }
+
+        let currentEditingGroup = null;
+
+        function showEditCategoryGroupModal(groupName) {
+            currentEditingGroup = groupName;
+            document.getElementById('editCategoryGroupNameInput').value = groupName;
+            document.getElementById('editBudgetYearInput').value = new Date().getFullYear();
+            document.getElementById('editBudgetAmountInput').value = '';
+            
+            // Load current budget for selected year if it exists
+            const year = new Date().getFullYear();
+            const budgetKey = `${groupName}:${year}`;
+            if (appData.categoryGroupBudgets && appData.categoryGroupBudgets[budgetKey]) {
+                document.getElementById('editBudgetAmountInput').value = appData.categoryGroupBudgets[budgetKey];
+            }
+            
+            document.getElementById('editCategoryGroupModal').style.display = 'flex';
+        }
+
+        function closeEditCategoryGroupModal() {
+            document.getElementById('editCategoryGroupModal').style.display = 'none';
+            currentEditingGroup = null;
+        }
+
+        function saveEditCategoryGroup() {
+            if (!currentEditingGroup) return;
+            
+            const newName = document.getElementById('editCategoryGroupNameInput').value.trim();
+            const budgetYear = parseInt(document.getElementById('editBudgetYearInput').value);
+            const budgetAmount = parseFloat(document.getElementById('editBudgetAmountInput').value || '0');
+            
+            if (!newName) {
+                showAlert('Please enter a group name', 'error');
+                return;
+            }
+            
+            // Check if new name already exists (if name changed)
+            if (newName !== currentEditingGroup && appData.categoryGroups.includes(newName)) {
+                showAlert('Group with this name already exists', 'error');
+                return;
+            }
+            
+            const nameChanged = newName !== currentEditingGroup;
+            
+            // Update the group name in categoryGroups array
+            if (nameChanged) {
+                const index = appData.categoryGroups.indexOf(currentEditingGroup);
+                if (index > -1) {
+                    appData.categoryGroups[index] = newName;
+                }
+                
+                // Update categoryMapping - change all mappings from old group to new group
+                Object.keys(appData.categoryMapping || {}).forEach(cat => {
+                    if (appData.categoryMapping[cat] === currentEditingGroup) {
+                        appData.categoryMapping[cat] = newName;
+                        syncCategoryMappingToSupabase(cat, newName);
+                    }
+                });
+                
+                // Update categoryGroupBudgets - rename budgets for this group
+                Object.keys(appData.categoryGroupBudgets || {}).forEach(key => {
+                    if (key.startsWith(currentEditingGroup + ':')) {
+                        const year = key.split(':')[1];
+                        const budget = appData.categoryGroupBudgets[key];
+                        delete appData.categoryGroupBudgets[key];
+                        appData.categoryGroupBudgets[`${newName}:${year}`] = budget;
+                        syncCategoryGroupBudgetToSupabase(newName, year, budget);
+                    }
+                });
+                
+                // Delete old category group from Supabase and add new one
+                deleteCategoryGroupFromSupabase(currentEditingGroup);
+                syncCategoryGroupToSupabase(newName);
+            }
+            
+            // Handle budget changes
+            if (budgetAmount > 0) {
+                const groupToUpdate = nameChanged ? newName : currentEditingGroup;
+                appData.categoryGroupBudgets = appData.categoryGroupBudgets || {};
+                appData.categoryGroupBudgets[`${groupToUpdate}:${budgetYear}`] = budgetAmount;
+                syncCategoryGroupBudgetToSupabase(groupToUpdate, budgetYear, budgetAmount);
+            }
+            
+            saveToLocalStorage();
+            renderCategoryGroupsUI();
+            renderCategoryMapping();
+            renderMasterGroupBreakdown();
+            populateSelects();
+            
+            let message = '';
+            if (nameChanged && budgetAmount > 0) {
+                message = `✓ Updated "${currentEditingGroup}" → "${newName}" with ${budgetYear} budget of ₹${budgetAmount}`;
+            } else if (nameChanged) {
+                message = `✓ Category group renamed to "${newName}"`;
+            } else if (budgetAmount > 0) {
+                message = `✓ Budget updated for "${currentEditingGroup}" (${budgetYear})`;
+            }
+            
+            if (message) {
+                showAlert(message, 'success');
+            }
+            closeEditCategoryGroupModal();
+        }
+
         // ==================== CATEGORY GROUPS / MAPPING FUNCTIONS ====================
         function getAllDistinctCategories() {
             const set = new Set(appData.categories || []);
@@ -3104,8 +3499,9 @@
                 el.style.padding = '6px 10px';
                 el.style.background = '#f1f5f9';
                 el.style.borderRadius = '6px';
-                el.innerHTML = `<strong style="font-size:0.95em">${group}</strong> <button class="btn-delete" style="padding:4px 8px; font-size:0.8em">Delete</button>`;
-                el.querySelector('button').onclick = () => deleteCategoryGroup(group);
+                el.innerHTML = `<strong style="font-size:0.95em">${group}</strong> <button class="btn-edit" style="padding:4px 8px; font-size:0.8em; margin-right:4px;">Edit</button><button class="btn-delete" style="padding:4px 8px; font-size:0.8em;">Delete</button>`;
+                el.querySelectorAll('button')[0].onclick = () => showEditCategoryGroupModal(group);
+                el.querySelectorAll('button')[1].onclick = () => deleteCategoryGroup(group);
                 container.appendChild(el);
             });
         }
@@ -3119,9 +3515,13 @@
             if (!appData.categoryGroups.includes(name)) {
                 appData.categoryGroups.push(name);
                 saveToLocalStorage();
+                console.log('syncEnabled:', syncEnabled, 'supabaseClient:', !!supabaseClient);
+                showAlert('✓ Category group added (Sync: ' + (syncEnabled ? 'ON' : 'OFF') + ')', 'success');
                 syncCategoryGroupToSupabase(name);
                 renderCategoryGroupsUI();
                 renderCategoryMapping();
+                // Show budget modal for the new group
+                showBudgetModal(name);
                 nameEl.value = '';
             } else {
                 showAlert('Group already exists', 'error');
@@ -3208,9 +3608,8 @@
 
             // Filter expenses by mapped categories and optional year
             let filtered = (appData.expenses || []).filter(e => mappedCats.includes(e.category));
-            if (year) {
-                filtered = filtered.filter(e => new Date(e.date).getFullYear() == year);
-            }
+            const selectedYear = year || new Date().getFullYear();
+            filtered = filtered.filter(e => new Date(e.date).getFullYear() == selectedYear);
 
             // Aggregate by individual category
             const breakdown = {};
@@ -3226,20 +3625,63 @@
                 count: breakdown[cat].count
             }));
 
-            // Compute total income for the selected year (or all years if not specified)
+            // Compute total income for the selected year
             let totalIncome = 0;
             (appData.income || []).forEach(inc => {
-                if (year) {
-                    if (new Date(inc.date).getFullYear() == year) totalIncome += parseFloat(inc.amount || 0);
-                } else {
-                    totalIncome += parseFloat(inc.amount || 0);
-                }
+                if (new Date(inc.date).getFullYear() == selectedYear) totalIncome += parseFloat(inc.amount || 0);
             });
 
             container.innerHTML = '';
             
+            // Calculate total spent in this group
+            let totalSpent = 0;
+            rows.forEach(r => totalSpent += r.amount);
+            
+            // Get budget for this group and year
+            const budgetKey = `${masterGroup}:${selectedYear}`;
+            const budget = appData.categoryGroupBudgets && appData.categoryGroupBudgets[budgetKey] ? 
+                           parseFloat(appData.categoryGroupBudgets[budgetKey]) : null;
+            
+            // Display budget status if budget exists
+            if (budget !== null) {
+                const remaining = budget - totalSpent;
+                const budgetStatusColor = remaining >= 0 ? '#28a745' : '#dc3545';
+                const statusText = remaining >= 0 ? 
+                    `₹${remaining.toFixed(2)} remaining` : 
+                    `₹${Math.abs(remaining).toFixed(2)} overboard`;
+                
+                const budgetDiv = document.createElement('div');
+                budgetDiv.style.cssText = `
+                    background: #f8f9fa;
+                    padding: 15px;
+                    border-radius: 8px;
+                    margin-bottom: 20px;
+                    border-left: 4px solid ${budgetStatusColor};
+                `;
+                budgetDiv.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <p style="margin: 0; color: #666; font-size: 0.9em;"><strong>Budget:</strong> ₹${budget.toFixed(2)}</p>
+                            <p style="margin: 5px 0 0 0; color: #666; font-size: 0.9em;"><strong>Spent:</strong> ₹${totalSpent.toFixed(2)}</p>
+                        </div>
+                        <div style="text-align: right;">
+                            <p style="margin: 0; color: ${budgetStatusColor}; font-weight: bold; font-size: 1.1em;">${statusText}</p>
+                            <p style="margin: 5px 0 0 0; color: #999; font-size: 0.85em;">${(totalSpent/budget*100).toFixed(1)}% used</p>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(budgetDiv);
+            } else if (year) {
+                const editBtn = document.createElement('button');
+                editBtn.textContent = '+ Set Budget for ' + masterGroup + ' (' + selectedYear + ')';
+                editBtn.className = 'success-btn';
+                editBtn.onclick = () => showBudgetModal(masterGroup);
+                editBtn.style.marginBottom = '15px';
+                container.appendChild(editBtn);
+            }
+            
             if (rows.length === 0) {
-                container.innerHTML = '<p style="color:#999; margin-top:10px;">No expenses found for this group in the selected period.</p>';
+                container.innerHTML += '<p style="color:#999; margin-top:10px;">No expenses found for this group in the selected period.</p>';
                 return;
             }
 
